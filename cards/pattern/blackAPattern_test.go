@@ -35,6 +35,7 @@ func Test_blackAPattern_Double(t *testing.T) {
 		args args
 		want int
 	}{
+		{ name: "11", args: args{list: append(makeCards(cards.CARDTYPE_CLUB, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...)}, want: PATTERN_INVALID },
 		{ name: "11", args: args{list: makeCards(cards.CARDTYPE_CLUB, "11")}, want: BLACKAPATTERN_DOUBLE },
 		{ name: "12", args: args{list: makeCards(cards.CARDTYPE_CLUB, "12")}, want: PATTERN_INVALID },
 		{ name: "111", args: args{list: makeCards(cards.CARDTYPE_CLUB, "12")}, want: PATTERN_INVALID },

@@ -11,7 +11,7 @@ type CardSuite struct {
 
 func CreateCardSuite(suiteCount int, cardsGenerator func () []Card) CardSuite {
 	cards := cardsGenerator()
-	for i := 0; i < suiteCount; i++ {
+	for i := 1; i < suiteCount; i++ {
 		cards = append(cards, cardsGenerator()...)
 	}
 	return CardSuite{ CardList: cards }

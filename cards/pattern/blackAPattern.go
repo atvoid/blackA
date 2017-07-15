@@ -39,6 +39,12 @@ func blackAPattern_Single(list []cards.Card) int {
 
 func blackAPattern_Double(list []cards.Card) int {
 	if len(list) == 2 {
+		if (list[0].CardNumber == 1 &&
+			list[1].CardNumber == 1 &&
+			((list[0].CardType == cards.CARDTYPE_SPADE && list[1].CardType == cards.CARDTYPE_CLUB) ||
+			(list[1].CardType == cards.CARDTYPE_SPADE && list[0].CardType == cards.CARDTYPE_CLUB))) {
+			return PATTERN_INVALID
+		}
 		if (list[0].IsNormalCard() && list[1].IsNormalCard() && list[0].CardNumber == list[1].CardNumber) {
 			return BLACKAPATTERN_DOUBLE
 		}

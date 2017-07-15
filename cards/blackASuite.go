@@ -5,7 +5,7 @@ type BlackASuite struct {
 }
 
 func generateCardsForBlackA() []Card {
-	cards := [...]Card {
+	cards := []Card {
 		{ CardType: CARDTYPE_CLUB, CardNumber: 1},
 		{ CardType: CARDTYPE_CLUB, CardNumber: 2},
 		{ CardType: CARDTYPE_CLUB, CardNumber: 5},
@@ -50,8 +50,8 @@ func generateCardsForBlackA() []Card {
 		{ CardType: CARDTYPE_SPADE, CardNumber: 11},
 		{ CardType: CARDTYPE_SPADE, CardNumber: 12},
 		{ CardType: CARDTYPE_SPADE, CardNumber: 13},
-		{ CardType: CARDTYPE_JOKER_S},
-		{ CardType: CARDTYPE_JOKER_L},
+		{ CardType: CARDTYPE_JOKER_S, CardNumber: 0},
+		{ CardType: CARDTYPE_JOKER_L, CardNumber: 0},
 	}
 	return cards[:];
 }
