@@ -1,11 +1,11 @@
-package game
+package rule
 
 import (
 	"blackA/cards"
 	"blackA/cards/pattern"
 )
 
-type ICardGame interface {
+type ICardRule interface {
 	PlayerNumber() int
 	Compare(a, b *pattern.CardPattern) (int, bool)
 	Init()

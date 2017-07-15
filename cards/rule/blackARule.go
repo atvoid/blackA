@@ -1,4 +1,4 @@
-package game
+package rule
 
 import (
 	"blackA/cards/pattern"

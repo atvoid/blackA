@@ -1,4 +1,4 @@
-package game
+package rule
 
 import (
 	"blackA/cards"
@@ -29,7 +29,7 @@ func makeCards(cardType int8, list string) []cards.Card {
 }
 
 func TestBlackAGame_DealCards(t *testing.T) {
-	game := ICardGame(&BlackAGame{})
+	game := ICardRule(&BlackAGame{})
 	game.Init()
 	result := game.DealCards()
 	if (len(result) != 4) {
