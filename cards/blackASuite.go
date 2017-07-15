@@ -63,3 +63,11 @@ func CreateCardSuiteForBlackA() BlackASuite {
 func (suite *BlackASuite)ToString() string {
 	return "BlackASuite"
 }
+
+func (suite *BlackASuite)Compare(a *Card, b *Card) int {
+	switch {
+		case a.CardType >= CARDTYPE_JOKER_S && b.CardType >= CARDTYPE_JOKER_S:
+			return (int)(a.CardType - b.CardType)
+	}
+	return 0
+}

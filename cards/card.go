@@ -13,7 +13,14 @@ const (
 
 type Card struct {
 	CardType	int8
-	CardNumber	int32
+	CardNumber	int
+}
+
+func (this *Card)IsNormalCard() bool {
+	if this.CardType <= CARDTYPE_SPADE {
+		return true
+	}
+	return false
 }
 
 func (card *Card) ToString() string {
