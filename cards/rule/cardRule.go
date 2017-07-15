@@ -10,4 +10,5 @@ type ICardRule interface {
 	Compare(a, b *pattern.CardPattern) (int, bool)
 	Init()
 	DealCards() [][]cards.Card
+	GetPatternMatcher() func([]cards.Card) pattern.CardPattern
 }

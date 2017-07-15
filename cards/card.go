@@ -23,6 +23,13 @@ func (this *Card)IsNormalCard() bool {
 	return false
 }
 
+func (this *Card) Equal(c *Card) bool {
+	if (this.CardNumber == c.CardNumber && this.CardType == c.CardType) {
+		return true
+	}
+	return false
+}
+
 func (card *Card) ToString() string {
 	var num string
 	switch {

@@ -16,20 +16,6 @@ const (
 	BLACKAPATTERN_DOUBLEBLACKA = 1008
 )
 
-type blackAList []cards.Card;
-
-func (this blackAList) Len() int {
-	return len(this)
-}
-
-func (this blackAList) Less(i, j int) bool {
-	return this[i].CardNumber < this[j].CardNumber
-}
-
-func (this blackAList) Swap(i, j int) {
-	this[i], this[j] = this[j], this[i]
-}
-
 func blackAPattern_Single(list []cards.Card) int {
 	if len(list) == 1 {
 		return BLACKAPATTERN_SINGLE
@@ -84,7 +70,7 @@ func blackAPattern_Nuke(list []cards.Card) int {
 
 func blackAPattern_Straight(list []cards.Card) int {
 	if len(list) >= 3 {
-		sort.Sort(blackAList(list))
+		sort.Sort(cards.CardList(list))
 		if (list[0].CardNumber == 1) {
 			if (list[1].CardNumber == 2) {
 				// pattern A,2,3,4,5...
@@ -123,7 +109,7 @@ func blackAPattern_Straight(list []cards.Card) int {
 func blackAPattern_DoubleStraight(list []cards.Card) int {
 	ll := len(list)
 	if ll >= 6 && ll % 2 == 0 {
-		sort.Sort(blackAList(list))
+		sort.Sort(cards.CardList(list))
 		if (list[1].CardNumber == 1) {
 			if (list[3].CardNumber == 2) {
 				// pattern AA,22,33,44,55...

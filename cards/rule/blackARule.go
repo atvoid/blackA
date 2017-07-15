@@ -7,6 +7,7 @@ import (
 
 type BlackAGame struct {
 	suite	cards.BlackASuite
+	matcher	func([]cards.Card) pattern.CardPattern
 }
 
 func (this *BlackAGame) PlayerNumber() int {
@@ -28,6 +29,13 @@ func (this *BlackAGame) DealCards() [][]cards.Card {
 		ans[i%num] = append(ans[i%num], v)
 	}
 	return ans
+}
+
+func (this *BlackAGame) GetPatternMatcher() func([]cards.Card) pattern.CardPattern {
+	if (this.matcher == nil) {
+		this.matcher = pattern.GenerateBlackAPatternMatcher()
+	}
+	return this.matcher
 }
 
 func numberCompare(a, b *cards.Card) int {
