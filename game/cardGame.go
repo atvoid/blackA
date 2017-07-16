@@ -13,6 +13,9 @@ const (
 	DISCARD_SMALLER = 2
 	DISCARD_WRONGTURN = 3
 	DISCARD_NOTEXIST = 4
+
+	BLACKA_GROUP = 0
+	NONBLACKA_GROUP = 1
 )
 
 type dropCards struct {
@@ -22,20 +25,21 @@ type dropCards struct {
 
 type CardGame struct {
 	rule		rule.ICardRule
-	blackAGroup	[]int
 	DropList	[]dropCards
 	Players		[]Player
 	Turn		int
+	End			chan bool
+	winGroup	int
 }
 
-func CreateCardGame() CardGame {
+func CreateCardGame(startTurn int) CardGame {
 	game := CardGame{
 		rule: rule.ICardRule(&rule.BlackAGame{}),
-		Turn: 0,
+		Turn: startTurn,
 	}
 	game.Players = make([]Player, game.rule.PlayerNumber())
-	game.blackAGroup = make([]int, 0, game.rule.PlayerNumber())
 	game.DropList = make([]dropCards, 0, 60)
+	game.End = make(chan bool)
 	return game
 }
 
@@ -46,7 +50,9 @@ func (this *CardGame) Start() {
 		this.Players[i].Cards = v
 		if (this.hasCards(i, []cards.Card{{ CardNumber:1, CardType: cards.CARDTYPE_CLUB }}) ||
 			this.hasCards(i, []cards.Card{{ CardNumber:1, CardType: cards.CARDTYPE_SPADE }})) {
-				this.blackAGroup = append(this.blackAGroup, i)
+				this.Players[i].Group = BLACKA_GROUP
+		} else {
+			this.Players[i].Group = NONBLACKA_GROUP
 		}
 	}
 }
@@ -68,6 +74,25 @@ func (this *CardGame) hasCards(playerNumer int, cardList []cards.Card) bool {
 	return true
 }
 
+func (this *CardGame) nextTurn() {
+	total := this.rule.PlayerNumber()
+	this.Turn = (this.Turn + 1) % total
+	for len(this.Players[this.Turn].Cards) == 0 {
+		this.Turn = (this.Turn + 1) % total
+	}
+}
+
+func (this *CardGame) Pass(playerNumber int) bool {
+	if (this.Turn != playerNumber) {
+		return false;
+	}
+	ll := len(this.DropList)
+	if (ll > 0 && this.DropList[ll-1].PlayerId == playerNumber) {
+		return false;
+	}
+	return true;
+}
+
 func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 	for _, v := range pat.CardList {
 		idx := 0
@@ -77,6 +102,27 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 		this.Players[playerNumber].Cards = append(this.Players[playerNumber].Cards[:idx], this.Players[playerNumber].Cards[idx+1:]...)
 	}
 	this.DropList = append(this.DropList, dropCards{ PlayerId: playerNumber, Cards: pat })
+
+	blackAWin := true
+	nonAWin := true
+	for _, v := range this.Players {
+		if len(v.Cards) != 0 {
+			if v.Group == BLACKA_GROUP {
+				blackAWin = false;
+			} else {
+				nonAWin = false;
+			}
+		}
+	}
+	if blackAWin || nonAWin {
+		if blackAWin {
+			this.winGroup = BLACKA_GROUP
+		}
+		if nonAWin {
+			this.winGroup = NONBLACKA_GROUP
+		}
+		this.End <- true
+	}
 }
 
 func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pattern.CardPattern) {
@@ -101,4 +147,26 @@ func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pa
 		return DISCARD_SUCCESS, &pat
 	}
 	return DISCARD_SMALLER, nil
+}
+
+func (this *CardGame) GetWinner() []int {
+	winner := make([]int, 0, this.rule.PlayerNumber())
+	for i, v := range this.Players {
+		if v.Group == this.winGroup {
+			winner = append(winner, i)
+		}
+	}
+	return winner
+}
+
+func (this *CardGame) GetStatus(pIdx int) CardCommand {
+	ans := make([]Player, len(this.Players))
+	for i, v := range this.Players {
+		if i != pIdx {
+			ans[i].Cards = make([]cards.Card, len(v.Cards))
+		} else {
+			ans[i].Cards = v.Cards
+		}
+	}
+	return CardCommand{ CmdType: CMDTYPE_INFO, PlayerList: ans }
 }

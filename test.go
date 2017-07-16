@@ -1,15 +1,33 @@
 package main
 
 import (
-	"blackA/cards"
 	"fmt"
+	"blackA/room"
+	"net"
 )
 
 func main() {
-	suite := cards.CreateCardSuiteForBlackA()
-	suite.Shuffle()
-	fmt.Println(len(suite.CardList))
-	for _, v := range suite.CardList {
-		fmt.Print(v.ToString())
+	/*c := make(chan int, 8)
+	go func() {
+		select {
+			case ss := <- c:
+				fmt.Println(ss)
+		}
+	}()*/
+	room := room.CreateRoom()
+	listener, _ := net.Listen("tcp", "192.168.199.189:789")
+	id := 0
+	for {
+		conn, _ := listener.Accept()
+		id++
+		if room.AddUser(id, string(id), &conn) {
+			fmt.Println("someone In:", id)
+			conn.Write([]byte("Success"))
+			//c <- id
+		}
+		if room.IsFull() {
+			fmt.Println("Started");
+			go room.Start()
+		}
 	}
 }
