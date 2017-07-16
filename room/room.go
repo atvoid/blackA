@@ -35,6 +35,7 @@ func (this *Room) AddUser(id int, name string, conn *net.Conn) bool {
 		this.Users = append(this.Users, user.CreateUser(id, name, conn))
 		u := &this.Users[len(this.Users)-1]
 		u.UserInput = this.msgReceiver
+		//go u.ReceiveMsg()
 		go u.HandleConnection()
 		return true
 	} else {
@@ -54,7 +55,7 @@ func (this *Room) getUserIndex(id int) int {
 func (this *Room) notifyUsers(cmd user.Command) {
 	for _, v := range this.Users {
 		v.ServerInput <- cmd
-		fmt.Println(cmd.ToMessage())
+		//fmt.Println(cmd.ToMessage())
 	}
 }
 
@@ -69,32 +70,38 @@ func (this *Room) notifyStatus() {
 func (this *Room) Start() {
 	this.Game.Start()
 	this.notifyStatus()
-	select {
-		case c:= <- this.msgReceiver:
-			fmt.Println(c.ToMessage())
-			var cmd game.CardCommand
-			idx := this.getUserIndex(c.UserId)
-			json.Unmarshal([]byte(c.Command), &cmd)
-			if cmd.CmdType == game.CMDTYPE_PASS {
-				result := this.Game.Pass(idx)
-				if (result) {
-					this.notifyUsers(c)
+	PollLoop:
+	for {
+		select {
+			case c:= <- this.msgReceiver:
+				fmt.Println(c.ToMessage())
+				var cmd game.CardCommand
+				idx := this.getUserIndex(c.UserId)
+				json.Unmarshal([]byte(c.Command), &cmd)
+				if cmd.CmdType == game.CMDTYPE_PASS {
+					result := this.Game.Pass(idx)
+					if (result) {
+						this.notifyUsers(c)
+					}
 				}
-			}
-			if cmd.CmdType == game.CMDTYPE_DISCARD {
-				result, _ := this.Game.Discard(idx, cmd.CardList)
-				if result == game.DISCARD_SUCCESS {
-					this.notifyUsers(c)
+				if cmd.CmdType == game.CMDTYPE_DISCARD {
+					result, _ := this.Game.Discard(idx, cmd.CardList)
+					if result == game.DISCARD_SUCCESS {
+						fmt.Printf("discard succeeded. next turn: %v\n", this.Game.Turn)
+						this.notifyUsers(c)
+					} else {
+						fmt.Printf("Wrong Operation, code: %v\n", result)
+					}
 				}
-			}
-		case <- this.Game.End:
-			fmt.Println("End")
-			winners := this.Game.GetWinner()
-			for i := range winners {
-				winners[i] = this.Users[winners[i]].Id
-			}
-			cmd := game.CardCommand{ CmdType: game.CMDTYPE_WIN, WinnerList: winners }
-			this.notifyUsers(user.Command{ Id: 0, Command: cmd.ToMessage() })
-			break
+			case <- this.Game.End:
+				fmt.Println("End")
+				winners := this.Game.GetWinner()
+				for i := range winners {
+					winners[i] = this.Users[winners[i]].Id
+				}
+				cmd := game.CardCommand{ CmdType: game.CMDTYPE_WIN, WinnerList: winners }
+				this.notifyUsers(user.Command{ Id: 0, Command: cmd.ToMessage() })
+				break PollLoop
+		}
 	}
 }

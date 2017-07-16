@@ -122,6 +122,8 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 			this.winGroup = NONBLACKA_GROUP
 		}
 		this.End <- true
+	} else {
+		this.nextTurn()
 	}
 }
 
