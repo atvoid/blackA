@@ -3,7 +3,6 @@ package room
 import (
 	"blackA/user"
 	"blackA/game"
-	"net"
 	"encoding/json"
 	"fmt"
 )
@@ -11,14 +10,19 @@ import (
 type Room struct {
 	Id			int
 	Game		game.CardGame
-	Users		[]user.User
-	msgReceiver	chan user.Command
+	Users		[]int
+	MsgSender	chan user.Command
+	MsgReceiver chan user.Command
 }
 
-func CreateRoom() Room {
-	room := Room{ msgReceiver: make(chan user.Command, 20)}
+var uid int = 0
+
+func CreateRoom(msgSender chan user.Command) Room {
+	uid++
+	room := Room{ Id: uid, MsgReceiver: make(chan user.Command, 20)}
 	room.Game = game.CreateCardGame(0)
-	room.Users = make([]user.User, 0, len(room.Game.Players))
+	room.Users = make([]int, 0, len(room.Game.Players))
+	room.MsgSender = msgSender
 	return room
 }
 
@@ -30,13 +34,13 @@ func (this *Room) IsFull() bool {
 	return true
 }
 
-func (this *Room) AddUser(id int, name string, conn *net.Conn) bool {
+func (this *Room) AddUser(id int) bool {
 	if (!this.IsFull()) {
-		this.Users = append(this.Users, user.CreateUser(id, name, conn))
-		u := &this.Users[len(this.Users)-1]
-		u.UserInput = this.msgReceiver
+		this.Users = append(this.Users, id)//append(this.Users, user.CreateUser(id, name, conn))
+		//u := &this.Users[len(this.Users)-1]
+		//u.UserInput = this.msgReceiver
 		//go u.ReceiveMsg()
-		go u.HandleConnection()
+		//go u.HandleConnection()
 		return true
 	} else {
 		return false
@@ -45,7 +49,7 @@ func (this *Room) AddUser(id int, name string, conn *net.Conn) bool {
 
 func (this *Room) getUserIndex(id int) int {
 	for i, v := range this.Users {
-		if v.Id == id {
+		if v == id {
 			return i
 		}
 	}
@@ -53,16 +57,21 @@ func (this *Room) getUserIndex(id int) int {
 }
 
 func (this *Room) notifyUsers(cmd user.Command) {
-	for _, v := range this.Users {
-		v.ServerInput <- cmd
+	for id := range this.Users {
+		cmd.UserId = id
+		this.MsgSender <- cmd
 		//fmt.Println(cmd.ToMessage())
 	}
 }
 
 func (this *Room) notifyStatus() {
-	for i, v := range this.Users {
+	for i, id := range this.Users {
 		msg := this.Game.GetStatus(i)
-		v.ServerInput <- user.Command{ Id: 0, Command: msg.ToMessage() }
+		msg.UserId = id
+		for idx, p := range msg.PlayerList {
+			p.UserId = this.Users[idx]
+		}
+		this.MsgSender <- user.Command{ Id: 0, Command: msg.ToMessage() }
 		// fmt.Println(msg.ToMessage())
 	}
 }
@@ -73,7 +82,7 @@ func (this *Room) Start() {
 	PollLoop:
 	for {
 		select {
-			case c:= <- this.msgReceiver:
+			case c:= <- this.MsgReceiver:
 				fmt.Println(c.ToMessage())
 				var cmd game.CardCommand
 				idx := this.getUserIndex(c.UserId)
@@ -81,7 +90,8 @@ func (this *Room) Start() {
 				if cmd.CmdType == game.CMDTYPE_PASS {
 					result := this.Game.Pass(idx)
 					if (result) {
-						this.notifyUsers(c)
+						cmd.UserId = c.UserId
+						this.notifyUsers(user.Command{ Command: cmd.ToMessage()})
 					}
 				}
 				if cmd.CmdType == game.CMDTYPE_DISCARD {
@@ -97,10 +107,10 @@ func (this *Room) Start() {
 				fmt.Println("End")
 				winners := this.Game.GetWinner()
 				for i := range winners {
-					winners[i] = this.Users[winners[i]].Id
+					winners[i] = this.Users[winners[i]]
 				}
 				cmd := game.CardCommand{ CmdType: game.CMDTYPE_WIN, WinnerList: winners }
-				this.notifyUsers(user.Command{ Id: 0, Command: cmd.ToMessage() })
+				this.notifyUsers(user.Command{ Command: cmd.ToMessage() })
 				break PollLoop
 		}
 	}

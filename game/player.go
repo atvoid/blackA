@@ -6,6 +6,7 @@ import (
 
 type Player struct {
 	Group	int
+	UserId	int
 	Cards	[]cards.Card
 }
 

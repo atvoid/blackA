@@ -15,13 +15,15 @@ type User struct {
 	UserInput	chan Command
 	ServerInput	chan Command
 	Terminate	chan bool
+	Disconnected	bool
+	RoomId		int
 }
 
-func CreateUser(id int, name string, conn *net.Conn) User {
+func CreateUser(id int, name string, conn *net.Conn) *User {
 	u := User{ Id: id, Name: name, conn: conn }
 	u.ServerInput = make(chan Command, 10)
 	u.userInput = make(chan Command, 10)
-	return u
+	return &u
 }
 
 func (this *User) HandleConnection() {
@@ -35,6 +37,7 @@ func (this *User) HandleConnection() {
 				fmt.Printf("Got Msg from %v\n",this.Id)
 				this.UserInput <- cc
 			case c := <- this.ServerInput:
+				c.UserId = this.Id
 				this.sendMsg(c)
 			case <- this.Terminate:
 				fmt.Printf("Terminate Msg from %v\n",this.Id)
@@ -61,6 +64,7 @@ func (this *User) receiveMsg() {
 			}
 		} else {
 			fmt.Println(err.Error())
+			break
 		}
 	}
 }

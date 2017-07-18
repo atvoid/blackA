@@ -14,6 +14,7 @@ const (
 
 type CardCommand struct {
 	CmdType			int
+	UserId			int
 	CardList		[]cards.Card
 	PlayerList		[]Player
 	WinnerList		[]int

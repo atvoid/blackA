@@ -1,19 +1,13 @@
 package main
-
+/*
 import (
 	"fmt"
 	"blackA/room"
 	"net"
 )
-
+*/
 func main() {
-	/*c := make(chan int, 8)
-	go func() {
-		select {
-			case ss := <- c:
-				fmt.Println(ss)
-		}
-	}()*/
+	/*
 	room := room.CreateRoom()
 	listener, _ := net.Listen("tcp", "192.168.199.189:789")
 	id := 0
@@ -22,7 +16,7 @@ func main() {
 		id++
 		if room.AddUser(id, string(id), &conn) {
 			fmt.Println("someone In:", id)
-			conn.Write([]byte("Success"))
+			//conn.Write([]byte("Success"))
 			//c <- id
 		}
 		if room.IsFull() {
@@ -30,4 +24,5 @@ func main() {
 			go room.Start()
 		}
 	}
+	*/
 }
