@@ -29,6 +29,7 @@ func CreateUser(id int, name string, conn *net.Conn) *User {
 func (this *User) HandleConnection() {
 	//userInput := make(chan Command, 10)
 	go this.receiveMsg()
+	fmt.Printf("Starting to handl user %v\n", this.Id)
 	PollLoop:
 	for {
 		select {
@@ -58,17 +59,19 @@ func (this *User) receiveMsg() {
 			err := json.Unmarshal(msg, &cmd)
 			//fmt.Printf("%v", cmd.ToMessage())
 			//uInput <- cmd
+			cmd.UserId = this.Id
 			this.userInput <- cmd
 			if err != nil {
 				fmt.Println(err.Error())
 			}
 		} else {
 			fmt.Println(err.Error())
+			this.userInput <- Command{ CmdType: CMDTYPE_DISCONNECT, UserId: this.Id }
 			break
 		}
 	}
 }
 
 func (this *User) sendMsg(c Command) {
-	(*this.conn).Write([]byte(c.ToMessage()))
+	(*this.conn).Write([]byte(c.ToMessage() + "\u0001"))
 }

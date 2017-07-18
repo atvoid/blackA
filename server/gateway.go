@@ -4,6 +4,8 @@ import (
 	"blackA/user"
 	"blackA/room"
 	"net"
+	"fmt"
+	"strconv"
 )
 
 type ServerRouter struct {
@@ -26,12 +28,22 @@ func (this *ServerRouter) AddUser(userid int, name string, conn *net.Conn) {
 	if (ok == USERSESSION_LOGIN_SUCCESS) {
 		u := this.userSession[userid]
 		u.UserInput = this.CmdFromUser
+		go u.HandleConnection()
 	}
 }
 
-func (this *ServerRouter) AddRoom() {
+func (this *ServerRouter) AddRoom() int {
 	r := room.CreateRoom(this.CmdFromServer)
 	this.roomSession[r.Id] = &r
+	return r.Id
+}
+
+func (this *ServerRouter) JoinRoom(rid int, uid int) bool {
+	result := this.roomSession[rid].AddUser(uid)
+	if result {
+		this.userSession[uid].RoomId = rid;
+	}
+	return result;
 }
 
 func (this *ServerRouter) StartRouting() {
@@ -39,11 +51,53 @@ func (this *ServerRouter) StartRouting() {
 	for {
 		select {
 			case c := <- this.CmdFromUser:
+				_, has := this.userSession[c.UserId]
+				if !has {
+					fmt.Printf("user %v does not exist\n", c.UserId)
+				}
 				if c.CmdType == user.CMDTYPE_GAME {
 					this.roomSession[this.userSession[c.UserId].RoomId].MsgReceiver <- c
+				} else if c.CmdType == user.CMDTYPE_DISCONNECT {
+					fmt.Printf("user %v disconnected\n", c.UserId)
+					room, ok := this.roomSession[this.userSession[c.UserId].RoomId]
+					if ok {
+						room.MsgReceiver <- c
+						room.RemoveUser(c.UserId)
+					}
+					delete(this.userSession, c.UserId)
+				} else if c.CmdType == user.CMDTYPE_JOINROOM {
+					num, err := strconv.ParseInt(c.Command, 10, 32)
+					if err != nil {
+						continue
+					}
+					rid := int(num)
+					// room id is 0, join a random empty room
+					if rid == 0 {
+						succ := false;
+						for i := range this.roomSession {
+							if this.JoinRoom(i, c.UserId) {
+								succ = true;
+								break
+							}
+						}
+						// no valid room, join a new room
+						if !succ {
+							rid = this.AddRoom()
+							fmt.Printf("created room %v\n", rid)
+							this.JoinRoom(rid, c.UserId)
+						}
+					} else {
+						_, ok := this.roomSession[rid]
+						if ok {
+							if !this.JoinRoom(rid, c.UserId) {
+								this.userSession[c.UserId].ServerInput <- user.Command{ UserId: c.UserId, CmdType: user.CMDRESULT_ROOMFULL }
+							}
+						}
+					}
 				}
 			case c := <- this.CmdFromServer:
-				this.userSession[c.Id].ServerInput <- c
+				fmt.Printf("server command to %v\n", c.UserId)
+				this.userSession[c.UserId].ServerInput <- c
 			case <- this.endSig:
 				break RoutingLoop
 		}

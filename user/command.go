@@ -7,6 +7,10 @@ import (
 const (
 	CMDTYPE_LOGIN = 0
 	CMDTYPE_GAME = 1
+	CMDTYPE_DISCONNECT = 2
+	CMDTYPE_JOINROOM = 3
+
+	CMDRESULT_ROOMFULL = 100
 )
 
 type Command struct {

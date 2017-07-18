@@ -57,6 +57,14 @@ func (this *CardGame) Start() {
 	}
 }
 
+func (this *CardGame) Clear() {
+	for i := range this.Players {
+		this.Players[i].Cards = make([]cards.Card, 0)
+		this.Players[i].Group = 0
+	}
+	this.DropList = make([]dropCards, 0)
+}
+
 func (this *CardGame) hasCards(playerNumer int, cardList []cards.Card) bool {
 	sort.Sort(cards.CardList(this.Players[playerNumer].Cards))
 	sort.Sort(cards.CardList(cardList))
@@ -90,6 +98,7 @@ func (this *CardGame) Pass(playerNumber int) bool {
 	if (ll > 0 && this.DropList[ll-1].PlayerId == playerNumber) {
 		return false;
 	}
+	this.nextTurn()
 	return true;
 }
 
@@ -169,6 +178,7 @@ func (this *CardGame) GetStatus(pIdx int) CardCommand {
 		} else {
 			ans[i].Cards = v.Cards
 		}
+		ans[i].OnTurn = this.Turn == i
 	}
 	return CardCommand{ CmdType: CMDTYPE_INFO, PlayerList: ans }
 }

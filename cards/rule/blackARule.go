@@ -60,6 +60,20 @@ func numberCompare(a, b *cards.Card) int {
 	return wa-wb;
 }
 
+func doubleCompare(a, b *cards.Card) int {
+	getWeight := func(c *cards.Card) int {
+		if c.CardNumber == 2 {
+			return 95
+		} else if c.CardNumber == 1 {
+			return 94
+		} else {
+			return c.CardNumber
+		}
+	}
+	wa, wb := getWeight(a), getWeight(b)
+	return wa-wb;
+}
+
 // pattern is sorted
 func straightCompare(a, b *pattern.CardPattern) int {
 	ll := len(a.CardList)
@@ -148,7 +162,7 @@ func (this *BlackAGame) Compare(a, b *pattern.CardPattern) (int, bool) {
 	} else if (b.PatternType == pattern.BLACKAPATTERN_DOUBLE) {
 		switch {
 			case a.PatternType == pattern.BLACKAPATTERN_DOUBLE:
-				return a.CardList[0].CardNumber - b.CardList[0].CardNumber, true
+				return doubleCompare(&a.CardList[0], &b.CardList[0]), true
 			case (a.PatternType == pattern.BLACKAPATTERN_SINGLE ||
 				a.PatternType == pattern.BLACKAPATTERN_DOUBLESTRAIGHT ||
 				a.PatternType == pattern.BLACKAPATTERN_STRAIGHT):
@@ -196,7 +210,7 @@ func (this *BlackAGame) Compare(a, b *pattern.CardPattern) (int, bool) {
 	} else if (b.PatternType == pattern.BLACKAPATTERN_BOMB) {
 		switch {
 			case a.PatternType == pattern.BLACKAPATTERN_BOMB:
-				return a.CardList[0].CardNumber - b.CardList[0].CardNumber, true
+				return doubleCompare(&a.CardList[0], &b.CardList[0]), true
 			case (a.PatternType == pattern.BLACKAPATTERN_SINGLE ||
 				a.PatternType == pattern.BLACKAPATTERN_STRAIGHT ||
 				a.PatternType == pattern.BLACKAPATTERN_DOUBLESTRAIGHT ||
@@ -212,7 +226,7 @@ func (this *BlackAGame) Compare(a, b *pattern.CardPattern) (int, bool) {
 	} else if (b.PatternType == pattern.BLACKAPATTERN_NUKE) {
 		switch {
 			case a.PatternType == pattern.BLACKAPATTERN_NUKE:
-				return a.CardList[0].CardNumber - b.CardList[0].CardNumber, true
+				return doubleCompare(&a.CardList[0], &b.CardList[0]), true
 			case (a.PatternType == pattern.BLACKAPATTERN_SINGLE ||
 				a.PatternType == pattern.BLACKAPATTERN_STRAIGHT ||
 				a.PatternType == pattern.BLACKAPATTERN_DOUBLESTRAIGHT ||
