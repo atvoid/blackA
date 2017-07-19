@@ -42,7 +42,11 @@ func WaitingLogin(conn *net.Conn) {
 }
 
 func main() {
-	listener, _ := net.Listen("tcp", "192.168.199.189:789")
+	listener, err := net.Listen("tcp", "104.46.227.20:789")
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
 	go server.GlobalRouter.StartRouting()
 	for {
 		conn, _ := listener.Accept()
