@@ -5,6 +5,7 @@ import (
 	"blackA/cards"
 	"blackA/cards/pattern"
 	"sort"
+	"fmt"
 )
 
 const (
@@ -29,6 +30,7 @@ type CardGame struct {
 	Players		[]Player
 	Turn		int
 	End			chan bool
+	wind		bool
 	winGroup	int
 }
 
@@ -40,6 +42,7 @@ func CreateCardGame(startTurn int) CardGame {
 	game.Players = make([]Player, game.rule.PlayerNumber())
 	game.DropList = make([]dropCards, 0, 60)
 	game.End = make(chan bool)
+	game.wind = false;
 	return game
 }
 
@@ -63,6 +66,7 @@ func (this *CardGame) Clear() {
 		this.Players[i].Group = 0
 	}
 	this.DropList = make([]dropCards, 0)
+	this.wind = false
 }
 
 func (this *CardGame) hasCards(playerNumer int, cardList []cards.Card) bool {
@@ -86,6 +90,10 @@ func (this *CardGame) nextTurn() {
 	total := this.rule.PlayerNumber()
 	this.Turn = (this.Turn + 1) % total
 	for len(this.Players[this.Turn].Cards) == 0 {
+		// if there is no one discarding and last turn player has no card, then next one take the turn.
+		if this.DropList[len(this.DropList)-1].PlayerId == this.Turn {
+			this.wind = true
+		}
 		this.Turn = (this.Turn + 1) % total
 	}
 }
@@ -125,9 +133,11 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 	}
 	if blackAWin || nonAWin {
 		if blackAWin {
+			fmt.Printf("black win.\n")
 			this.winGroup = BLACKA_GROUP
 		}
 		if nonAWin {
+			fmt.Printf("non-black win.\n")
 			this.winGroup = NONBLACKA_GROUP
 		}
 		this.End <- true
@@ -148,7 +158,8 @@ func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pa
 		return DISCARD_INVALIDPATTERN, nil
 	}
 	ll := len(this.DropList)
-	if (ll == 0 || this.DropList[ll-1].PlayerId == playerNumber) {
+	if (ll == 0 || this.wind || this.DropList[ll-1].PlayerId == playerNumber) {
+		this.wind = false
 		this.discard(playerNumber, pat)
 		return DISCARD_SUCCESS, &pat
 	}
