@@ -68,7 +68,7 @@ func TestBlackAGame_Compare(t *testing.T) {
 			args: args{
 				a: matcher(append(makeCards(cards.CARDTYPE_DIAMOND, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...)),
 				b: matcher(append(makeCards(cards.CARDTYPE_CLUB, "3"), makeCards(cards.CARDTYPE_SPADE, "3")...))},
-			want: -2,
+			want: 91,
 			want1: true,
 		},
 		{
@@ -78,6 +78,33 @@ func TestBlackAGame_Compare(t *testing.T) {
 				a: matcher(append(makeCards(cards.CARDTYPE_CLUB, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...)),
 				b: matcher(append(makeCards(cards.CARDTYPE_CLUB, "3"), makeCards(cards.CARDTYPE_SPADE, "3")...))},
 			want: 1,
+			want1: true,
+		},
+		{
+			name: "black11 567",
+			this: game,
+			args: args{
+				a: matcher(append(makeCards(cards.CARDTYPE_CLUB, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...)),
+				b: matcher(append(makeCards(cards.CARDTYPE_CLUB, "5"), makeCards(cards.CARDTYPE_SPADE, "67")...))},
+			want: 1,
+			want1: true,
+		},
+		{
+			name: "11 567",
+			this: game,
+			args: args{
+				a: matcher(append(makeCards(cards.CARDTYPE_DIAMOND, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...)),
+				b: matcher(append(makeCards(cards.CARDTYPE_CLUB, "5"), makeCards(cards.CARDTYPE_SPADE, "67")...))},
+			want: 0,
+			want1: false,
+		},
+		{
+			name: "333 black11",
+			this: game,
+			args: args{
+				a: matcher(append(makeCards(cards.CARDTYPE_CLUB, "33"), makeCards(cards.CARDTYPE_SPADE, "3")...)),
+				b: matcher(append(makeCards(cards.CARDTYPE_CLUB, "1"), makeCards(cards.CARDTYPE_SPADE, "1")...))},
+			want: -1,
 			want1: true,
 		},
 		{

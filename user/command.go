@@ -24,3 +24,9 @@ func (this *Command) ToMessage() string{
 	s, _ := json.Marshal(*this)
 	return string(s)
 }
+
+func MakeJoinRoomResult(uid int, rid int) Command {
+	cmd := Command{ UserId: uid, CmdType: CMDTYPE_JOINROOM }
+	cmd.Command = string(rid)
+	return cmd
+}

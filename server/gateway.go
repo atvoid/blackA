@@ -77,6 +77,7 @@ func (this *ServerRouter) StartRouting() {
 						for i := range this.roomSession {
 							if this.JoinRoom(i, c.UserId) {
 								succ = true;
+								this.sendJoinRoomResult(c.UserId, i)
 								break
 							}
 						}
@@ -85,14 +86,18 @@ func (this *ServerRouter) StartRouting() {
 							rid = this.AddRoom()
 							fmt.Printf("created room %v\n", rid)
 							this.JoinRoom(rid, c.UserId)
+							this.sendJoinRoomResult(c.UserId, rid)
 						}
 					} else {
 						_, ok := this.roomSession[rid]
 						if ok {
-							if !this.JoinRoom(rid, c.UserId) {
-								this.userSession[c.UserId].ServerInput <- user.Command{ UserId: c.UserId, CmdType: user.CMDRESULT_ROOMFULL }
+							if this.JoinRoom(rid, c.UserId) {
+								// this.userSession[c.UserId].ServerInput <- user.Command{ UserId: c.UserId, CmdType: user.CMDRESULT_ROOMFULL }
+								this.sendJoinRoomResult(c.UserId, rid)
+								break;
 							}
 						}
+						this.sendJoinRoomResult(c.UserId , 0)
 					}
 				}
 			case c := <- this.CmdFromServer:
@@ -102,4 +107,9 @@ func (this *ServerRouter) StartRouting() {
 				break RoutingLoop
 		}
 	}
+}
+
+func (this *ServerRouter) sendJoinRoomResult(uid, rid int) {
+	cmd := user.MakeJoinRoomResult(uid, rid)
+	this.userSession[uid].ServerInput <- cmd
 }
