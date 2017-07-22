@@ -2,6 +2,7 @@ package user
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 const (
@@ -27,6 +28,6 @@ func (this *Command) ToMessage() string{
 
 func MakeJoinRoomResult(uid int, rid int) Command {
 	cmd := Command{ UserId: uid, CmdType: CMDTYPE_JOINROOM }
-	cmd.Command = string(rid)
+	cmd.Command = fmt.Sprintf("%v", rid)
 	return cmd
 }
