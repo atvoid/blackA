@@ -48,6 +48,7 @@ func main() {
 		return
 	}
 	go server.GlobalRouter.StartRouting()
+	fmt.Println("server started")
 	for {
 		conn, _ := listener.Accept()
 		go WaitingLogin(&conn)
