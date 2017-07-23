@@ -55,7 +55,9 @@ func (this *ServerRouter) StartRouting() {
 				if !has {
 					fmt.Printf("user %v does not exist\n", c.UserId)
 				}
-				if c.CmdType == user.CMDTYPE_GAME {
+				if c.CmdType == user.CMDTYPE_PING {
+					// do nothing
+				} else if c.CmdType == user.CMDTYPE_GAME {
 					this.roomSession[this.userSession[c.UserId].RoomId].MsgReceiver <- c
 				} else if c.CmdType == user.CMDTYPE_DISCONNECT {
 					fmt.Printf("user %v disconnected\n", c.UserId)
