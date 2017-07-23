@@ -5,7 +5,10 @@ import (
 	"blackA/game"
 	"encoding/json"
 	"fmt"
+	"blackA/logging"
 )
+
+var area string = "Room"
 
 type Room struct {
 	Id			int
@@ -29,7 +32,7 @@ func CreateRoom(msgSender chan user.Command) Room {
 }
 
 func (this *Room) IsFull() bool {
-	fmt.Printf("Room %v, Users: %v, Cap: %v\n", this.Id, this.userCount, len(this.Game.Players))
+	logging.LogInfo(area, fmt.Sprintf("Room %v, Users: %v, Cap: %v\n", this.Id, this.userCount, len(this.Game.Players)))
 	if this.userCount < len(this.Game.Players) {
 		return false
 	}
@@ -64,7 +67,7 @@ func (this *Room) RemoveUser(id int) {
 	for i, v := range this.Users {
 		if v == id {
 			this.userCount--
-			fmt.Printf("removed %v.\n", v)
+			logging.LogInfo(area, fmt.Sprintf("removed user %v from room %v.\n", v, this.Id))
 			this.Users[i] = 0
 			break
 		}
@@ -85,7 +88,6 @@ func (this *Room) notifyUsers(cmd user.Command) {
 		if user.IsValidId(id) {
 			cmd.UserId = id
 			this.MsgSender <- cmd
-			//fmt.Println(cmd.ToMessage())
 		}
 	}
 }
@@ -99,13 +101,12 @@ func (this *Room) notifyStatus() {
 				msg.PlayerList[idx].UserId = this.Users[idx]
 			}
 			this.MsgSender <- user.Command{ UserId: id, CmdType: user.CMDTYPE_GAME, Command: msg.ToMessage() }
-			// fmt.Println(msg.ToMessage())
 		}
 	}
 }
 
 func (this *Room) Start() {
-	fmt.Printf("room %v started.\n", this.Id)
+	logging.LogInfo(area, fmt.Sprintf("room %v started.\n", this.Id))
 	// clear message
 	ll := len(this.MsgReceiver)
 	for i := 0; i < ll; i++ {
@@ -127,28 +128,28 @@ func (this *Room) Start() {
 
 				if cmd.CmdType == game.CMDTYPE_PASS {
 					result := this.Game.Pass(idx)
-					fmt.Printf("user %v pass.\n", c.UserId)
+					logging.LogInfo(area, fmt.Sprintf("user %v pass.\n", c.UserId))
 					if (result) {
 						cmd.UserId = c.UserId
 						this.notifyUsers(user.Command{ CmdType: user.CMDTYPE_GAME, Command: cmd.ToMessage()})
 					}
 					this.notifyStatus()
 				} else if cmd.CmdType == game.CMDTYPE_DISCARD {
-					fmt.Printf("Turn:%v, user %v, index %v discarding.\n", this.Game.Turn, c.UserId, idx)
+					logging.LogInfo(area, fmt.Sprintf("Turn:%v, user %v, index %v discarding.\n", this.Game.Turn, c.UserId, idx))
 					result, _ := this.Game.Discard(idx, cmd.CardList)
 					if result == game.DISCARD_SUCCESS {
-						fmt.Printf("discard succeeded. next turn: %v\n", this.Game.Turn)
+						logging.LogInfo(area, fmt.Sprintf("discard succeeded. next turn: %v\n", this.Game.Turn))
 						cmd.UserId = c.UserId
 						this.notifyUsers(user.Command{ CmdType: user.CMDTYPE_GAME, Command: cmd.ToMessage()})
 					} else {
-						fmt.Printf("Wrong Operation, code: %v\n", result)
+						logging.LogInfo(area, fmt.Sprintf("Wrong Operation, code: %v\n", result))
 					}
 					this.notifyStatus()
 				} else if cmd.CmdType == game.CMDTYPE_INFO {
 					this.notifyStatus()
 				}
 			case <- this.Game.End:
-				fmt.Println("End")
+				logging.LogInfo(area, fmt.Sprintf("Room %v game finished", this.Id))
 				winners := this.Game.GetWinner()
 				for i := range winners {
 					winners[i] = this.Users[winners[i]]
@@ -158,7 +159,7 @@ func (this *Room) Start() {
 				break PollLoop
 		}
 	}
-	fmt.Printf("room %v ended.\n", this.Id)
+	logging.LogInfo(area, fmt.Sprintf("room %v terminated.\n", this.Id))
 	this.Clear()
 }
 

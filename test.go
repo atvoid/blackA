@@ -5,12 +5,15 @@ import (
 	"net"
 	"blackA/server"
 	"blackA/user"
+	"blackA/logging"
 	"bufio"
 	"encoding/json"
 )
 
+var area string = "Main"
+
 func WaitingLogin(conn *net.Conn) {
-	fmt.Printf("client %v connected.\n", (*conn).RemoteAddr())
+	logging.LogInfo(area, fmt.Sprintf("client %v connected.\n", (*conn).RemoteAddr()))
 	for {
 		msg, err := bufio.NewReader(*conn).ReadBytes('\u0001')
 		if err == nil {
@@ -18,30 +21,31 @@ func WaitingLogin(conn *net.Conn) {
 			var cmd user.Command
 			err := json.Unmarshal(msg, &cmd)
 			if err != nil {
-				fmt.Println(err.Error())
+				logging.LogError(area, err.Error())
 				break
 			} else if cmd.UserId == 0 {
-				fmt.Println("invalid user id")
+				logging.LogInfo(area, fmt.Sprintf("invalid user id"))
 				break
 			} else {
 				if cmd.CmdType == user.CMDTYPE_LOGIN {
 					server.GlobalRouter.AddUser(cmd.UserId, "", conn)
-					fmt.Println("Added User")
+					logging.LogInfo(area, fmt.Sprintf("Added User %v", cmd.UserId))
 					return
 				} else {
 					break
 				}
 			}
 		} else {
-			fmt.Println(err.Error())
+			logging.LogError(area, (err.Error()))
 			break
 		}
 	}	
 	(*conn).Close()
-	fmt.Printf("client %v Disconnected.\n", (*conn).RemoteAddr())
+	logging.LogInfo(area, fmt.Sprintf("client %v Disconnected.\n", (*conn).RemoteAddr()))
 }
 
 func main() {
+	logging.StartLogging()
 	listener, err := net.Listen("tcp", "10.0.1.4:789")
 	if err != nil {
 		fmt.Println(err.Error())

@@ -5,7 +5,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"blackA/logging"
 )
+
+var area string = "User"
 
 type User struct {
 	Id			int
@@ -29,23 +32,22 @@ func CreateUser(id int, name string, conn *net.Conn) *User {
 func (this *User) HandleConnection() {
 	//userInput := make(chan Command, 10)
 	go this.receiveMsg()
-	fmt.Printf("Starting to handl user %v\n", this.Id)
+	logging.LogInfo(area, fmt.Sprintf("Starting to handle user %v\n", this.Id))
 	PollLoop:
 	for {
 		select {
 			case cc := <- this.userInput:
-				fmt.Printf("Got Msg with %v\n", cc.ToMessage())
-				fmt.Printf("Got Msg from %v\n",this.Id)
+				logging.LogInfo(area, fmt.Sprintf("Got Msg from %v with %v\n", this.Id, cc.ToMessage()))
 				this.UserInput <- cc
 			case c := <- this.ServerInput:
 				c.UserId = this.Id
 				this.sendMsg(c)
 			case <- this.Terminate:
-				fmt.Printf("Terminate Msg from %v\n",this.Id)
+				logging.LogInfo(area, fmt.Sprintf("Terminate Msg from %v\n",this.Id))
 				break PollLoop
 		}
 	}
-	fmt.Println("End")
+	logging.LogInfo(area, fmt.Sprintf("End to handle user %v\n", this.Id))
 }
 
 func (this *User) receiveMsg() {
@@ -62,10 +64,10 @@ func (this *User) receiveMsg() {
 			cmd.UserId = this.Id
 			this.userInput <- cmd
 			if err != nil {
-				fmt.Println(err.Error())
+				logging.LogError(area, err.Error())
 			}
 		} else {
-			fmt.Println(err.Error())
+			logging.LogError(area, err.Error())
 			this.userInput <- Command{ CmdType: CMDTYPE_DISCONNECT, UserId: this.Id }
 			break
 		}

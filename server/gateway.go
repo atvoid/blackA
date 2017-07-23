@@ -6,7 +6,10 @@ import (
 	"net"
 	"fmt"
 	"strconv"
+	"blackA/logging"
 )
+
+var area string = "Router"
 
 type ServerRouter struct {
 	CmdFromUser			chan user.Command
@@ -53,14 +56,14 @@ func (this *ServerRouter) StartRouting() {
 			case c := <- this.CmdFromUser:
 				_, has := this.userSession[c.UserId]
 				if !has {
-					fmt.Printf("user %v does not exist\n", c.UserId)
+					logging.LogInfo(area, fmt.Sprintf("user %v does not exist\n", c.UserId))
 				}
 				if c.CmdType == user.CMDTYPE_PING {
 					// do nothing
 				} else if c.CmdType == user.CMDTYPE_GAME {
 					this.roomSession[this.userSession[c.UserId].RoomId].MsgReceiver <- c
 				} else if c.CmdType == user.CMDTYPE_DISCONNECT {
-					fmt.Printf("user %v disconnected\n", c.UserId)
+					logging.LogInfo(area, fmt.Sprintf("user %v disconnected\n", c.UserId))
 					room, ok := this.roomSession[this.userSession[c.UserId].RoomId]
 					if ok {
 						room.MsgReceiver <- c
@@ -86,7 +89,7 @@ func (this *ServerRouter) StartRouting() {
 						// no valid room, join a new room
 						if !succ {
 							rid = this.AddRoom()
-							fmt.Printf("created room %v\n", rid)
+							logging.LogInfo(area, fmt.Sprintf("created room %v\n", rid))
 							this.JoinRoom(rid, c.UserId)
 							this.sendJoinRoomResult(c.UserId, rid)
 						}
@@ -103,7 +106,7 @@ func (this *ServerRouter) StartRouting() {
 					}
 				}
 			case c := <- this.CmdFromServer:
-				fmt.Printf("server command to %v\n", c.UserId)
+				logging.LogInfo(area, fmt.Sprintf("server command to %v\n", c.UserId))
 				this.userSession[c.UserId].ServerInput <- c
 			case <- this.endSig:
 				break RoutingLoop
