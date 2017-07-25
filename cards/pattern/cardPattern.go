@@ -2,6 +2,7 @@ package pattern
 
 import (
 	"blackA/cards"
+	"fmt"
 )
 
 type CardPattern struct {
@@ -23,4 +24,12 @@ func CreatePatternClassifier(list []func([]cards.Card) int) func([]cards.Card) C
 		}
 		return CardPattern{ PatternType: PATTERN_INVALID, CardList: cardList }
 	}
+}
+
+func (this *CardPattern) ToString() string {
+	ss := ""
+	for _, c := range this.CardList {
+		ss = ss + c.ToString()
+	}
+	return fmt.Sprintf("pattern:%v, cards:%v", this.PatternType, ss)
 }

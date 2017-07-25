@@ -2,33 +2,36 @@ package user
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 const (
-	CMDTYPE_LOGIN = 0
-	CMDTYPE_GAME = 1
+	CMDTYPE_LOGIN      = 0
+	CMDTYPE_GAME       = 1
 	CMDTYPE_DISCONNECT = 2
-	CMDTYPE_JOINROOM = 3
-	CMDTYPE_PING = 4
+	CMDTYPE_PING       = 4
+	CMDTYPE_ROOM       = 5
 
-	CMDRESULT_ROOMFULL = 100
+	// internal Command
+	CMDTYPE_INTERNAL_ROOMEMPTY = 1000
 )
 
 type Command struct {
-	Id			int
-	UserId		int
-	CmdType		int
-	Command		string
+	Id      int
+	UserId  int
+	RoomId  int
+	CmdType int
+	Command string
 }
 
-func (this *Command) ToMessage() string{
+func (this *Command) ToMessage() string {
 	s, _ := json.Marshal(*this)
 	return string(s)
 }
 
+/*
 func MakeJoinRoomResult(uid int, rid int) Command {
-	cmd := Command{ UserId: uid, CmdType: CMDTYPE_JOINROOM }
+	cmd := Command{UserId: uid, CmdType: CMDTYPE_JOINROOM}
 	cmd.Command = fmt.Sprintf("%v", rid)
 	return cmd
 }
+*/

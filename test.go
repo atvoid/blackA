@@ -1,13 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"net"
+	"blackA/logging"
 	"blackA/server"
 	"blackA/user"
-	"blackA/logging"
 	"bufio"
 	"encoding/json"
+	"fmt"
+	"net"
 )
 
 var area string = "Main"
@@ -39,13 +39,13 @@ func WaitingLogin(conn *net.Conn) {
 			logging.LogError(area, (err.Error()))
 			break
 		}
-	}	
+	}
 	(*conn).Close()
 	logging.LogInfo(area, fmt.Sprintf("client %v Disconnected.\n", (*conn).RemoteAddr()))
 }
 
 func main() {
-	logging.StartLogging()
+	logging.StartLogging(logging.LOGLEVEL_DETAIL)
 	listener, err := net.Listen("tcp", "10.0.1.4:789")
 	if err != nil {
 		fmt.Println(err.Error())

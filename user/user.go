@@ -37,7 +37,7 @@ func (this *User) HandleConnection() {
 	for {
 		select {
 			case cc := <- this.userInput:
-				logging.LogInfo(area, fmt.Sprintf("Got Msg from %v with %v\n", this.Id, cc.ToMessage()))
+				// logging.LogInfo(area, fmt.Sprintf("Got Msg from %v with %v\n", this.Id, cc.ToMessage()))
 				this.UserInput <- cc
 			case c := <- this.ServerInput:
 				c.UserId = this.Id
