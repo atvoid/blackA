@@ -1,4 +1,4 @@
-package game
+package cardgame
 
 import (
 	"blackA/cards"

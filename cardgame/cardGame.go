@@ -1,9 +1,11 @@
-package game
+package cardgame
 
 import (
 	"blackA/cards"
 	"blackA/cards/pattern"
 	"blackA/cards/rule"
+	"blackA/logging"
+	"blackA/room"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -22,36 +24,39 @@ const (
 	NONBLACKA_GROUP = 1
 )
 
+type gameInitData struct {
+	startIndex int
+}
+
 type dropCards struct {
 	PlayerId int
 	Cards    pattern.CardPattern
 }
 
 type CardGame struct {
+	id          int
 	rule        rule.ICardRule
 	DropList    []dropCards
 	Players     []PlayerInfo
-	MsgReceiver chan string
-	//MsgSender   chan room.RoomCommandInternal
-	Turn     int
-	End      chan bool
-	wind     bool
-	winGroup int
+	MsgReceiver chan room.GameCommand
+	MsgSender   chan room.GameCommand
+	End         chan bool
+	winGroup    int
+	logArea     string
+	gameInfo    CardGameInfo
 }
 
-func CreateCardGame(startTurn int) CardGame {
-	game := CardGame{
-		rule: rule.ICardRule(&rule.BlackAGame{}),
-		Turn: startTurn,
-	}
-	game.Players = make([]PlayerInfo, game.rule.PlayerNumber())
-	game.DropList = make([]dropCards, 0, 60)
-	game.End = make(chan bool)
-	game.wind = false
-	return game
+func (this CardGame) GetGameId() int {
+	return this.id
+}
+func (this CardGame) SetMsgReceiver(c chan room.GameCommand) {
+	this.MsgReceiver = c
+}
+func (this CardGame) SetMsgSender(c chan room.GameCommand) {
+	this.MsgSender = c
 }
 
-func (this *CardGame) Start() {
+func (this CardGame) Start() {
 	this.rule.Init()
 	deal := this.rule.DealCards()
 	for i, v := range deal {
@@ -63,6 +68,62 @@ func (this *CardGame) Start() {
 			this.Players[i].Group = NONBLACKA_GROUP
 		}
 	}
+	go this.handleGame()
+}
+
+func (this *CardGame) handleGameCommand(pIdx int, cmdString string) {
+	var cmd CardCommand
+	err := json.Unmarshal([]byte(cmdString), &cmd)
+	if err != nil {
+		logging.LogError(this.logArea, fmt.Sprintf("invalid card command. %v", cmdString))
+	}
+	switch cmd.CmdType {
+	case CMDTYPE_DISCARD:
+		this.Discard(pIdx, cmd.CardList)
+	case CMDTYPE_PASS:
+		this.Pass(pIdx)
+	}
+}
+
+func (this *CardGame) handleCommand(gCmd *room.GameCommand) {
+	switch gCmd.CmdType {
+	case room.GAMECMD_DISCONNECT:
+	case room.GAMECMD_RECONNECT:
+	case room.GAMECMD_EXIT:
+		this.endGame(true)
+	case room.GAMECMD_STATUS:
+		// notify all
+		this.notifyAll()
+	case room.GAMECMD_GAME:
+		this.handleGameCommand(gCmd.PlayerIndex, gCmd.PlayerCommand)
+	}
+}
+
+func (this *CardGame) handleGame() {
+	logging.LogInfo(this.logArea, fmt.Sprintf("Start to handle game %v", this.id))
+GameLoop:
+	for {
+		select {
+		case gCmd := <-this.MsgReceiver:
+			this.handleCommand(&gCmd)
+		case <-this.End:
+			this.endGame(false)
+			break GameLoop
+		}
+	}
+	logging.LogInfo(this.logArea, fmt.Sprintf("end to handle game %v", this.id))
+}
+
+func (this *CardGame) endGame(isExit bool) {
+	this.gameInfo.IsEnd = true
+	this.notifyAll()
+	var nextData interface{}
+	if isExit {
+		nextData = nil
+	} else {
+		nextData = &gameInitData{startIndex: this.gameInfo.Turn}
+	}
+	this.MsgSender <- room.MakeGameCommandResponse_End(this.gameInfo.ToMessage(), nextData)
 }
 
 func (this *CardGame) Clear() {
@@ -71,7 +132,7 @@ func (this *CardGame) Clear() {
 		this.Players[i].Group = 0
 	}
 	this.DropList = make([]dropCards, 0)
-	this.wind = false
+	this.gameInfo.Wind = false
 }
 
 func (this *CardGame) hasCards(playerNumer int, cardList []cards.Card) bool {
@@ -93,22 +154,22 @@ func (this *CardGame) hasCards(playerNumer int, cardList []cards.Card) bool {
 
 func (this *CardGame) nextTurn() {
 	total := this.rule.PlayerNumber()
-	this.Turn = (this.Turn + 1) % total
-	for len(this.Players[this.Turn].Cards) == 0 {
+	this.gameInfo.Turn = (this.gameInfo.Turn + 1) % total
+	for len(this.Players[this.gameInfo.Turn].Cards) == 0 {
 		// if there is no one discarding and last turn player has no card, then next one take the turn.
-		if this.DropList[len(this.DropList)-1].PlayerId == this.Turn {
-			this.wind = true
+		if this.DropList[len(this.DropList)-1].PlayerId == this.gameInfo.Turn {
+			this.gameInfo.Wind = true
 		}
-		this.Turn = (this.Turn + 1) % total
+		this.gameInfo.Turn = (this.gameInfo.Turn + 1) % total
 	}
 }
 
 func (this *CardGame) Pass(playerNumber int) bool {
-	if this.Turn != playerNumber {
+	if this.gameInfo.Turn != playerNumber {
 		return false
 	}
 	ll := len(this.DropList)
-	if ll > 0 && this.DropList[ll-1].PlayerId == playerNumber {
+	if ll > 0 && (this.DropList[ll-1].PlayerId == playerNumber || this.gameInfo.Wind) {
 		return false
 	}
 	this.nextTurn()
@@ -138,12 +199,17 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 	}
 	if blackAWin || nonAWin {
 		if blackAWin {
-			fmt.Printf("black win.\n")
+			logging.LogInfo_Normal(this.logArea, fmt.Sprintf("black win.\n"))
 			this.winGroup = BLACKA_GROUP
 		}
 		if nonAWin {
-			fmt.Printf("non-black win.\n")
+			logging.LogInfo_Normal(this.logArea, fmt.Sprintf("non-black win.\n"))
 			this.winGroup = NONBLACKA_GROUP
+		}
+		for _, v := range this.Players {
+			if v.Group == this.winGroup {
+				v.IsWinner = true
+			}
 		}
 		this.End <- true
 	} else {
@@ -152,7 +218,7 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 }
 
 func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pattern.CardPattern) {
-	if this.Turn != playerNumber {
+	if this.gameInfo.Turn != playerNumber {
 		return DISCARD_WRONGTURN, nil
 	}
 	if !this.hasCards(playerNumber, cardList) {
@@ -163,8 +229,8 @@ func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pa
 		return DISCARD_INVALIDPATTERN, nil
 	}
 	ll := len(this.DropList)
-	if ll == 0 || this.wind || this.DropList[ll-1].PlayerId == playerNumber {
-		this.wind = false
+	if ll == 0 || this.gameInfo.Wind || this.DropList[ll-1].PlayerId == playerNumber {
+		this.gameInfo.Wind = false
 		this.discard(playerNumber, pat)
 		return DISCARD_SUCCESS, &pat
 	}
@@ -186,35 +252,36 @@ func (this *CardGame) GetWinner() []int {
 	return winner
 }
 
-func (this *CardGame) GetStatus(pIdx int, returnTrue bool) string {
+func (this CardGame) GetStatus(pIdx int) string {
 	//ans := make([]PlayerInfo, len(this.Players))
 	//for i, v := range this.Players {
 	ans := PlayerInfo{}
 	v := this.Players[pIdx]
-	if !returnTrue {
-		ans.Cards = make([]cards.Card, len(v.Cards))
-	} else {
-		ans.Cards = v.Cards
-	}
-	ans.OnTurn = this.Turn == pIdx
+	ans.Cards = v.Cards
+	ans.OnTurn = this.gameInfo.Turn == pIdx
 
 	return ans.ToMessage()
 }
 
-func (this *CardGame) HandleCommand(pIdx int, cmdString string) {
-	var cmd CardCommand
-	json.Unmarshal([]byte(cmdString), &cmd)
-	switch cmd.CmdType {
-	case CMDTYPE_DISCARD:
-		this.Discard(pIdx, cmd.CardList)
-	case CMDTYPE_PASS:
-		this.Pass(pIdx)
+func (this *CardGame) GetAllStatusFor(pIdx int) []string {
+	ans := make([]string, len(this.Players))
+	for i, v := range this.Players {
+		p := PlayerInfo{}
+		if i == pIdx {
+			p.Cards = v.Cards
+		} else {
+			p.Cards = make([]cards.Card, len(v.Cards))
+		}
+		p.OnTurn = this.gameInfo.Turn == i
+		p.IsWinner = v.IsWinner
+		p.Score = v.Score
+		ans[i] = p.ToMessage()
 	}
+	return ans
 }
 
-func (this *CardGame) HandleGame() {
-GameLoop:
-	for {
-		select {}
+func (this *CardGame) notifyAll() {
+	for i, _ := range this.Players {
+		this.MsgSender <- room.MakeGameCommandResponse_Notify(i, this.GetAllStatusFor(i), this.gameInfo.ToMessage())
 	}
 }

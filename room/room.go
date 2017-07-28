@@ -19,6 +19,7 @@ type Room struct {
 	gameMsgReceiver chan GameCommand
 	gameMsgSender   chan GameCommand
 	disposeSig      chan bool
+	disposing       bool // set flag to reject all join command
 	userCount       int
 	isStarted       bool
 	nextGameData    interface{}
@@ -40,6 +41,7 @@ func CreateRoom(msgSender chan user.Command, gameCreator IGameCreator) Room {
 
 	room.gameMsgReceiver = make(chan GameCommand, 30)
 	room.gameMsgSender = make(chan GameCommand, 30)
+	room.disposing = false
 	return room
 }
 
@@ -125,7 +127,7 @@ func (this *Room) getRoomStatus() []*UserInfo {
 
 func (this *Room) transformGameCommand(gCmd GameCommand) *user.Command {
 	if this.Users[gCmd.PlayerIndex] == nil {
-		logging.LogError(area, fmt.Sprintf("room index %v has no user.", gCmd.PlayerIndex))
+		logging.LogError(this.logArea, fmt.Sprintf("room index %v has no user.", gCmd.PlayerIndex))
 		return nil
 	}
 	var c user.Command
@@ -146,7 +148,7 @@ func (this *Room) transformGameCommand(gCmd GameCommand) *user.Command {
 func (this *Room) transformUserCommand(uCmd user.Command) *GameCommand {
 	idx := this.getUserIndex(uCmd.UserId)
 	if idx == -1 {
-		logging.LogError(area, fmt.Sprintf("room has no userId %v.", uCmd.UserId))
+		logging.LogError(this.logArea, fmt.Sprintf("room has no userId %v.", uCmd.UserId))
 		return nil
 	}
 	gCmd := MakeGameCommandRequest_Game(idx, uCmd.Command)
@@ -186,6 +188,11 @@ func (this *Room) endGame(nextGameData interface{}) {
 	this.nextGameData = nextGameData
 	this.Game = nil
 	this.isStarted = false
+	for _, v := range this.Users {
+		if !v.Connected {
+			this.RemoveUser(v.UserId)
+		}
+	}
 }
 
 func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
@@ -209,6 +216,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		// if game does not start, just notify all
 		pIdx := this.getUserIndex(uid)
 		if pIdx != -1 {
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v reconnect in room %v", uid, this.Id))
 			if !this.isStarted {
 				this.Users[pIdx].Connected = true
 				this.notifyRoomStatus()
@@ -219,7 +227,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			}
 		}
 	case ROOMCMD_JOIN:
-		if this.IsFull() {
+		if this.IsFull() || this.disposing {
 			logging.LogInfo_Detail(this.logArea, "room is full.")
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Join_Full(this.Id))
 		} else if this.isStarted {
@@ -230,6 +238,9 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			this.AddUser(uid)
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Join_Success(this.Id))
 			this.notifyRoomStatus()
+		}
+		if this.userCount == 0 {
+			this.disposeSelf()
 		}
 	case ROOMCMD_LEAVE:
 		if this.isStarted {
@@ -244,7 +255,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Leave_Success(this.Id))
 			// if the room is empty, notify upper layer to dispose this room
 			if this.userCount == 0 {
-				this.MsgSender <- user.Command{CmdType: user.CMDTYPE_INTERNAL_ROOMEMPTY, RoomId: this.Id}
+				this.disposeSelf()
 			} else {
 				this.notifyRoomStatus()
 			}
@@ -285,12 +296,16 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 	}
 }
 
+func (this *Room) disposeSelf() {
+	this.MsgSender <- user.Command{CmdType: user.CMDTYPE_INTERNAL_ROOMEMPTY, RoomId: this.Id}
+}
+
 func (this *Room) Dispose() {
 	this.disposeSig <- true
 }
 
 func (this *Room) Start() {
-	logging.LogInfo(area, fmt.Sprintf("room %v started.\n", this.Id))
+	logging.LogInfo(this.logArea, fmt.Sprintf("room %v started.\n", this.Id))
 	// clear message
 	ll := len(this.MsgReceiver)
 	for i := 0; i < ll; i++ {
@@ -313,7 +328,7 @@ PollLoop:
 				var rCmd RoomCommand
 				err := json.Unmarshal([]byte(c.Command), &rCmd)
 				if err != nil {
-					logging.LogError(area, fmt.Sprintf("invalid user command:%v", c.ToMessage()))
+					logging.LogError(this.logArea, fmt.Sprintf("invalid user command:%v", c.ToMessage()))
 				}
 				this.handleRoomCommand(c.UserId, rCmd)
 
@@ -333,5 +348,5 @@ PollLoop:
 			break PollLoop
 		}
 	}
-	logging.LogInfo(area, fmt.Sprintf("room %v terminated.\n", this.Id))
+	logging.LogInfo(this.logArea, fmt.Sprintf("room %v disposed.\n", this.Id))
 }

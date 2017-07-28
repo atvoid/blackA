@@ -1,4 +1,4 @@
-package game
+package cardgame
 
 import (
 	"blackA/cards"
@@ -6,10 +6,12 @@ import (
 )
 
 type PlayerInfo struct {
-	Group  int
-	UserId int
-	Cards  []cards.Card
-	OnTurn bool
+	Group    int
+	UserId   int
+	Cards    []cards.Card
+	OnTurn   bool
+	IsWinner bool
+	Score    int
 }
 
 func (this *PlayerInfo) Clear() {

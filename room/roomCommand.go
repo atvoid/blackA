@@ -41,6 +41,14 @@ func (this *RoomCommand) ToMessage() string {
 	return string(b)
 }
 
+func MakeRoomRequest_Reconnect(rId int) RoomCommand {
+	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_RECONNECT}
+}
+
+func MakeRoomRequest_Disconnect(rId int) RoomCommand {
+	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_DISCONNECT}
+}
+
 func MakeRoomResponse_Join_Success(rId int) RoomCommand {
 	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_RESPONSE_JOIN_SUCCESS}
 }
