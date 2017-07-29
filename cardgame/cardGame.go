@@ -140,6 +140,7 @@ func (this *CardGame) endGame(isExit bool) {
 	} else {
 		nextData = &gameInitData{startIndex: this.gameInfo.Turn}
 	}
+	logging.LogInfo(this.logArea, fmt.Sprintf("game finished. %v", isExit))
 	this.MsgSender <- room.MakeGameCommandResponse_End(this.gameInfo.ToMessage(), nextData)
 }
 

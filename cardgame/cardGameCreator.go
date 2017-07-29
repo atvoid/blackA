@@ -27,7 +27,7 @@ func (this *CardGameCreator) CreateGame(initData interface{}) room.IGame {
 	}
 	game.Players = make([]PlayerInfo, game.rule.PlayerNumber())
 	game.DropList = make([]dropCards, 0, 60)
-	game.End = make(chan bool)
+	game.End = make(chan bool, 1)
 	game.gameInfo.Wind = false
 	game.logArea = area + fmt.Sprintf("_%v", gid)
 	return &game

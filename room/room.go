@@ -241,9 +241,8 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		pIdx := this.getUserIndex(uid)
 		if pIdx != -1 {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v reconnect in room %v", uid, this.Id))
-			if !this.isStarted {
-				this.Users[pIdx].Connected = true
-			} else {
+			this.Users[pIdx].Connected = true
+			if this.isStarted {
 				// notify game a user reconnected
 				gCmd := MakeGameCommandRequest_Reconnect(pIdx)
 				this.gameMsgSender <- gCmd
