@@ -19,6 +19,6 @@ func (this *PlayerInfo) Clear() {
 }
 
 func (this *PlayerInfo) ToMessage() string {
-	s, _ := json.Marshal(this)
+	s, _ := json.Marshal(*this)
 	return string(s)
 }

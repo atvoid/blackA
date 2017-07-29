@@ -13,11 +13,9 @@ const (
 )
 
 type CardCommand struct {
-	CmdType    int
-	UserId     int
-	CardList   []cards.Card
-	PlayerList []PlayerInfo
-	WinnerList []int
+	CmdType  int
+	UserId   int
+	CardList []cards.Card
 }
 
 func (this *CardCommand) ToMessage() string {

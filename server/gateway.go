@@ -1,6 +1,7 @@
 package server
 
 import (
+	"blackA/cardgame"
 	"blackA/logging"
 	"blackA/room"
 	"blackA/user"
@@ -16,7 +17,6 @@ type ServerRouter struct {
 	userSession   UserSession
 	roomSession   RoomSession
 	endSig        chan bool
-	area          string
 }
 
 var GlobalRouter ServerRouter = ServerRouter{
@@ -49,18 +49,10 @@ func (this *ServerRouter) AddUser(userid int, name string, conn *net.Conn) {
 }
 
 func (this *ServerRouter) AddRoom() int {
-	r := room.CreateRoom(this.CmdFromServer, nil) // TODO
+	r := room.CreateRoom(this.CmdFromServer, &cardgame.CardGameCreator{})
 	this.roomSession[r.Id] = &r
 	go r.Start()
 	return r.Id
-}
-
-func (this *ServerRouter) JoinRoom(rid int, uid int) bool {
-	result := this.roomSession[rid].AddUser(uid)
-	if result {
-		this.userSession[uid].RoomId = rid
-	}
-	return result
 }
 
 func (this *ServerRouter) handlerUserCommand(c user.Command) {
@@ -90,13 +82,18 @@ func (this *ServerRouter) handlerUserCommand(c user.Command) {
 	case user.CMDTYPE_ROOM:
 		if u.RoomId == 0 && c.RoomId == 0 {
 			// join a random room
+			ok := false
 			for _, v := range this.roomSession {
 				if v != nil && !v.IsFull() {
 					v.MsgReceiver <- c
+					ok = true
+					break
 				}
 			}
-			rid := this.AddRoom()
-			this.roomSession[rid].MsgReceiver <- c
+			if !ok {
+				rid := this.AddRoom()
+				this.roomSession[rid].MsgReceiver <- c
+			}
 		} else if u.RoomId == 0 && c.RoomId > 0 {
 			// join a specific room
 			r, ok := this.roomSession[c.RoomId]
@@ -129,15 +126,30 @@ RoutingLoop:
 			}
 			this.handlerUserCommand(c)
 		case c := <-this.CmdFromServer:
-			logging.LogInfo_Detail(this.area, fmt.Sprintf("server command: %v\n", c.ToMessage()))
+			//logging.LogInfo_Detail(area, fmt.Sprintf("server command: %v\n", c.ToMessage()))
 			if c.CmdType == user.CMDTYPE_INTERNAL_ROOMEMPTY {
 				r, ok := this.roomSession[c.RoomId]
 				if ok && r != nil {
 					r.Dispose()
 					delete(this.roomSession, c.RoomId)
 				}
+			} else if c.CmdType == user.CMDTYPE_INTERNAL_LEAVEROOM {
+				u, ok := this.userSession[c.UserId]
+				if ok {
+					u.RoomId = 0
+				}
+			} else if c.CmdType == user.CMDTYPE_INTERNAL_JOINROOM {
+				u, ok := this.userSession[c.UserId]
+				if ok {
+					u.RoomId = c.RoomId
+				}
 			} else {
-				this.userSession[c.UserId].ServerInput <- c
+				u, ok := this.userSession[c.UserId]
+				if ok {
+					u.ServerInput <- c
+				} else {
+					logging.LogError(area, fmt.Sprintf("invalid server cmd to user %v.", c.UserId))
+				}
 			}
 		case <-this.endSig:
 			break RoutingLoop

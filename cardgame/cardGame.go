@@ -46,17 +46,17 @@ type CardGame struct {
 	gameInfo    CardGameInfo
 }
 
-func (this CardGame) GetGameId() int {
+func (this *CardGame) GetGameId() int {
 	return this.id
 }
-func (this CardGame) SetMsgReceiver(c chan room.GameCommand) {
+func (this *CardGame) SetMsgReceiver(c chan room.GameCommand) {
 	this.MsgReceiver = c
 }
-func (this CardGame) SetMsgSender(c chan room.GameCommand) {
+func (this *CardGame) SetMsgSender(c chan room.GameCommand) {
 	this.MsgSender = c
 }
 
-func (this CardGame) Start() {
+func (this *CardGame) Start() {
 	this.rule.Init()
 	deal := this.rule.DealCards()
 	for i, v := range deal {
@@ -79,18 +79,34 @@ func (this *CardGame) handleGameCommand(pIdx int, cmdString string) {
 	}
 	switch cmd.CmdType {
 	case CMDTYPE_DISCARD:
-		this.Discard(pIdx, cmd.CardList)
+		a, _ := this.Discard(pIdx, cmd.CardList)
+		if a == DISCARD_SUCCESS {
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("index %v discarded successfully.", pIdx))
+			this.notifyCommand(cmd)
+		} else {
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("index %v failed to discard, ErrorCode: %v.", pIdx, a))
+		}
+		this.notifyAll()
 	case CMDTYPE_PASS:
-		this.Pass(pIdx)
+		ok := this.Pass(pIdx)
+		if ok {
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("index %v passed successfully.", pIdx))
+			this.notifyCommand(cmd)
+		} else {
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("index %v failed to pass.", pIdx))
+		}
+		this.notifyAll()
 	}
 }
 
 func (this *CardGame) handleCommand(gCmd *room.GameCommand) {
 	switch gCmd.CmdType {
 	case room.GAMECMD_DISCONNECT:
+		this.notifyAll()
 	case room.GAMECMD_RECONNECT:
+		this.notifyAll()
 	case room.GAMECMD_EXIT:
-		this.endGame(true)
+		this.End <- true
 	case room.GAMECMD_STATUS:
 		// notify all
 		this.notifyAll()
@@ -101,13 +117,14 @@ func (this *CardGame) handleCommand(gCmd *room.GameCommand) {
 
 func (this *CardGame) handleGame() {
 	logging.LogInfo(this.logArea, fmt.Sprintf("Start to handle game %v", this.id))
+	this.notifyAll()
 GameLoop:
 	for {
 		select {
 		case gCmd := <-this.MsgReceiver:
 			this.handleCommand(&gCmd)
-		case <-this.End:
-			this.endGame(false)
+		case isExit := <-this.End:
+			this.endGame(isExit)
 			break GameLoop
 		}
 	}
@@ -211,7 +228,7 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 				v.IsWinner = true
 			}
 		}
-		this.End <- true
+		this.End <- false
 	} else {
 		this.nextTurn()
 	}
@@ -252,7 +269,7 @@ func (this *CardGame) GetWinner() []int {
 	return winner
 }
 
-func (this CardGame) GetStatus(pIdx int) string {
+func (this *CardGame) GetStatus(pIdx int) string {
 	//ans := make([]PlayerInfo, len(this.Players))
 	//for i, v := range this.Players {
 	ans := PlayerInfo{}
@@ -281,7 +298,14 @@ func (this *CardGame) GetAllStatusFor(pIdx int) []string {
 }
 
 func (this *CardGame) notifyAll() {
+	logging.LogInfo_Detail(this.logArea, "notify all status.")
 	for i, _ := range this.Players {
 		this.MsgSender <- room.MakeGameCommandResponse_Notify(i, this.GetAllStatusFor(i), this.gameInfo.ToMessage())
+	}
+}
+
+func (this *CardGame) notifyCommand(cCmd CardCommand) {
+	for i, _ := range this.Players {
+		this.MsgSender <- room.MakeGameCommandResponse_Command(i, cCmd.ToMessage())
 	}
 }

@@ -13,6 +13,8 @@ const (
 
 	// internal Command
 	CMDTYPE_INTERNAL_ROOMEMPTY = 1000
+	CMDTYPE_INTERNAL_LEAVEROOM = 1001
+	CMDTYPE_INTERNAL_JOINROOM  = 1002
 )
 
 type Command struct {

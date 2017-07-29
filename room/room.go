@@ -42,6 +42,7 @@ func CreateRoom(msgSender chan user.Command, gameCreator IGameCreator) Room {
 	room.gameMsgReceiver = make(chan GameCommand, 30)
 	room.gameMsgSender = make(chan GameCommand, 30)
 	room.disposing = false
+	room.disposeSig = make(chan bool)
 	return room
 }
 
@@ -118,7 +119,7 @@ func (this *Room) getRoomStatus() []*UserInfo {
 			u := NewUserInfo(v.UserId)
 			uInfo[i] = &u
 			uInfo[i].Connected = v.Connected
-			uInfo[i].PlayerInfo = nil
+			uInfo[i].PlayerInfo = ""
 			uInfo[i].Ready = v.Ready
 		}
 	}
@@ -130,19 +131,29 @@ func (this *Room) transformGameCommand(gCmd GameCommand) *user.Command {
 		logging.LogError(this.logArea, fmt.Sprintf("room index %v has no user.", gCmd.PlayerIndex))
 		return nil
 	}
-	var c user.Command
+	var c *user.Command = nil
 	switch gCmd.CmdType {
-	case GAMECMD_NOTIFY:
+	case GAMECMD_RESPONSE_NOTIFY:
+		if this.Users[gCmd.PlayerIndex] == nil {
+			break
+		}
 		uInfo := this.getRoomStatus()
 
 		for i, v := range gCmd.PlayerInfo {
 			if uInfo[i] != nil {
-				uInfo[i].PlayerInfo = &v
+				uInfo[i].PlayerInfo = v
 			}
 		}
-		c = MakeUserCommandForRoom(this.Users[gCmd.PlayerIndex].UserId, MakeRoomResponse_GameStatus(this.Id, uInfo, gCmd.GameInfo, this.isStarted))
+		ans := MakeUserCommandForRoom(this.Users[gCmd.PlayerIndex].UserId, MakeRoomResponse_GameStatus(this.Id, uInfo, gCmd.GameInfo, this.isStarted))
+		c = &ans
+	case GAMECMD_RESPONSE_COMMAND:
+		u := this.Users[gCmd.PlayerIndex]
+		if u != nil {
+			ans := user.Command{UserId: u.UserId, CmdType: user.CMDTYPE_GAME, Command: gCmd.PlayerCommand}
+			c = &ans
+		}
 	}
-	return &c
+	return c
 }
 
 func (this *Room) transformUserCommand(uCmd user.Command) *GameCommand {
@@ -166,6 +177,11 @@ func (this *Room) notifyRoomStatus() {
 }
 
 func (this *Room) startGame() {
+	// clear all game msg buffer
+	ll := len(this.gameMsgSender)
+	for i := 0; i < ll; i++ {
+		<-this.gameMsgSender
+	}
 	this.Game = this.GameCreator.CreateGame(this.nextGameData)
 	this.Game.SetMsgSender(this.gameMsgReceiver)
 	this.Game.SetMsgReceiver(this.gameMsgSender)
@@ -174,11 +190,6 @@ func (this *Room) startGame() {
 		if v != nil {
 			v.Ready = false
 		}
-	}
-	// clear all game msg buffer
-	ll := len(this.gameMsgSender)
-	for i := 0; i < ll; i++ {
-		<-this.gameMsgSender
 	}
 	this.Game.Start()
 	this.isStarted = true
@@ -190,8 +201,22 @@ func (this *Room) endGame(nextGameData interface{}) {
 	this.isStarted = false
 	for _, v := range this.Users {
 		if !v.Connected {
-			this.RemoveUser(v.UserId)
+			this.userLeave(v.UserId)
 		}
+	}
+	this.notifyRoomStatus()
+}
+
+func (this *Room) userLeave(uid int) {
+	this.RemoveUser(uid)
+	logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v has left.", uid))
+	this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Leave_Success(this.Id))
+	this.MsgSender <- user.Command{CmdType: user.CMDTYPE_INTERNAL_LEAVEROOM, RoomId: this.Id, UserId: uid}
+	// if the room is empty, notify upper layer to dispose this room
+	if this.userCount == 0 {
+		this.disposeSelf()
+	} else {
+		this.notifyRoomStatus()
 	}
 }
 
@@ -200,8 +225,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 	case ROOMCMD_DISCONNECT:
 		// if game does not start, will remove the user
 		if !this.isStarted {
-			this.RemoveUser(uid)
-			this.notifyRoomStatus()
+			this.userLeave(uid)
 		} else {
 			pIdx := this.getUserIndex(uid)
 			if pIdx != -1 {
@@ -219,12 +243,13 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v reconnect in room %v", uid, this.Id))
 			if !this.isStarted {
 				this.Users[pIdx].Connected = true
-				this.notifyRoomStatus()
 			} else {
 				// notify game a user reconnected
 				gCmd := MakeGameCommandRequest_Reconnect(pIdx)
 				this.gameMsgSender <- gCmd
 			}
+			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Reconnect_SUCCESS(this.Id))
+			this.notifyRoomStatus()
 		}
 	case ROOMCMD_JOIN:
 		if this.IsFull() || this.disposing {
@@ -236,6 +261,8 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		} else {
 			// if this user is already in room, view it as success
 			this.AddUser(uid)
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v joined.", uid))
+			this.MsgSender <- user.Command{CmdType: user.CMDTYPE_INTERNAL_JOINROOM, RoomId: this.Id, UserId: uid}
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Join_Success(this.Id))
 			this.notifyRoomStatus()
 		}
@@ -248,18 +275,10 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			if pIdx != -1 {
 				logging.LogInfo_Detail(this.logArea, fmt.Sprintf("%v exited from a ongoing game.", uid))
 				this.gameMsgSender <- MakeGameCommandRequest_Exit(pIdx)
-				this.notifyRoomStatus()
-			}
-		} else {
-			this.RemoveUser(uid)
-			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Leave_Success(this.Id))
-			// if the room is empty, notify upper layer to dispose this room
-			if this.userCount == 0 {
-				this.disposeSelf()
-			} else {
-				this.notifyRoomStatus()
 			}
 		}
+		this.userLeave(uid)
+
 	case ROOMCMD_READY:
 		if this.isStarted {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user:%v, invalid ready cmd, game has already started.", uid))
@@ -267,6 +286,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			pIdx := this.getUserIndex(uid)
 			if pIdx != -1 {
 				this.Users[pIdx].Ready = true
+				this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Ready_Success(this.Id))
 				if this.allReady() {
 					this.startGame()
 				}
@@ -278,6 +298,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user:%v, invalid notready cmd, game has already started.", uid))
 		} else {
 			pIdx := this.getUserIndex(uid)
+			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_NotReady_Success(this.Id))
 			if pIdx != -1 {
 				this.Users[pIdx].Ready = false
 			}
@@ -301,21 +322,18 @@ func (this *Room) disposeSelf() {
 }
 
 func (this *Room) Dispose() {
+	this.disposing = true
 	this.disposeSig <- true
 }
 
 func (this *Room) Start() {
 	logging.LogInfo(this.logArea, fmt.Sprintf("room %v started.\n", this.Id))
-	// clear message
-	ll := len(this.MsgReceiver)
-	for i := 0; i < ll; i++ {
-		<-this.MsgReceiver
-	}
 
 PollLoop:
 	for {
 		select {
 		case c := <-this.MsgReceiver:
+			//logging.LogInfo_Detail(this.logArea, fmt.Sprintf("got cmd type %v from %v.", c.CmdType, c.UserId))
 			if c.CmdType == user.CMDTYPE_GAME {
 
 				gCmd := this.transformUserCommand(c)
@@ -335,13 +353,13 @@ PollLoop:
 			}
 
 		case gCmd := <-this.gameMsgReceiver:
-			if gCmd.CmdType == GAMECMD_NOTIFY {
+			if gCmd.CmdType == GAMECMD_RESPONSE_GAMEEND {
+				this.endGame(gCmd.NextGameData)
+			} else {
 				c := this.transformGameCommand(gCmd)
 				if c != nil {
 					this.MsgSender <- *c
 				}
-			} else if gCmd.CmdType == GAMECMD_GAMEEND {
-				this.endGame(gCmd.NextGameData)
 			}
 
 		case <-this.disposeSig:

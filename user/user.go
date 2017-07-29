@@ -52,7 +52,7 @@ func (this *User) clearChannel() {
 func (this *User) HandleConnection() {
 	this.clearChannel()
 	go this.receiveMsg()
-	logging.LogInfo(area, fmt.Sprintf("Starting to handle user %v\n", this.Id))
+	logging.LogInfo_Normal(area, fmt.Sprintf("Starting to handle user %v\n", this.Id))
 PollLoop:
 	for {
 		select {
@@ -66,12 +66,12 @@ PollLoop:
 			c.UserId = this.Id
 			this.sendMsg(c)
 		case <-this.stopSigConn:
-			logging.LogInfo(area, fmt.Sprintf("Terminate handling connection from %v\n", this.Id))
+			logging.LogInfo_Detail(area, fmt.Sprintf("Terminate handling connection from %v\n", this.Id))
 			this.stopSigMsg <- true
 			break PollLoop
 		}
 	}
-	logging.LogInfo(area, fmt.Sprintf("End to handle user %v\n", this.Id))
+	logging.LogInfo_Normal(area, fmt.Sprintf("End to handle user %v\n", this.Id))
 }
 
 func (this *User) receiveMsg() {
@@ -99,7 +99,8 @@ PollMsgLoop:
 			} else {
 				logging.LogError(area, err.Error())
 				this.userInput <- Command{CmdType: CMDTYPE_DISCONNECT, UserId: this.Id}
-				break
+				this.stopSigConn <- true
+				break PollMsgLoop
 			}
 		}
 	}

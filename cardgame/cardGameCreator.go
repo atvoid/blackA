@@ -30,7 +30,7 @@ func (this *CardGameCreator) CreateGame(initData interface{}) room.IGame {
 	game.End = make(chan bool)
 	game.gameInfo.Wind = false
 	game.logArea = area + fmt.Sprintf("_%v", gid)
-	return game
+	return &game
 }
 
 func (this *CardGameCreator) GetPlayerCapacity() int {

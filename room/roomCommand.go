@@ -22,6 +22,9 @@ const (
 
 	ROOMCMD_RESPONSE_LEAVE_SUCCESS = 200
 
+	ROOMCMD_RESPONSE_READY_SUCCESS    = 300
+	ROOMCMD_RESPONSE_NOTREADY_SUCCESS = 301
+
 	ROOMCMD_RESPONSE_RECONNECT_SUCCESS = 400
 
 	ROOMCMD_RESPONSE_ROOMSTATUS = 500
@@ -63,6 +66,14 @@ func MakeRoomResponse_Join_Started(rId int) RoomCommand {
 
 func MakeRoomResponse_Leave_Success(rId int) RoomCommand {
 	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_RESPONSE_LEAVE_SUCCESS}
+}
+
+func MakeRoomResponse_Ready_Success(rId int) RoomCommand {
+	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_RESPONSE_READY_SUCCESS}
+}
+
+func MakeRoomResponse_NotReady_Success(rId int) RoomCommand {
+	return RoomCommand{RoomId: rId, CmdType: ROOMCMD_RESPONSE_NOTREADY_SUCCESS}
 }
 
 func MakeRoomResponse_Reconnect_SUCCESS(rId int) RoomCommand {

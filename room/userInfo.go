@@ -2,7 +2,7 @@ package room
 
 type UserInfo struct {
 	UserId     int
-	PlayerInfo *string
+	PlayerInfo string
 	Connected  bool
 	Ready      bool
 }
@@ -10,7 +10,7 @@ type UserInfo struct {
 func NewUserInfo(uid int) UserInfo {
 	u := UserInfo{}
 	u.UserId = uid
-	u.PlayerInfo = nil
+	u.PlayerInfo = ""
 	u.Connected = true
 	u.Ready = false
 	return u

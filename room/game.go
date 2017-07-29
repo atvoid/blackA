@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	GAMECMD_NOTIFY  = 0
-	GAMECMD_GAMEEND = 2
+	GAMECMD_RESPONSE_NOTIFY  = 0
+	GAMECMD_RESPONSE_COMMAND = 1
+	GAMECMD_RESPONSE_GAMEEND = 2
 
 	GAMECMD_GAME       = 100
 	GAMECMD_RECONNECT  = 101
@@ -63,10 +64,14 @@ func MakeGameCommandRequest_Status(pIdx int) GameCommand {
 }
 
 func MakeGameCommandResponse_Notify(pIdx int, playInfos []string, gInfo string) GameCommand {
-	return GameCommand{CmdType: GAMECMD_NOTIFY, PlayerInfo: playInfos, GameInfo: gInfo}
+	return GameCommand{CmdType: GAMECMD_RESPONSE_NOTIFY, PlayerInfo: playInfos, GameInfo: gInfo, PlayerIndex: pIdx}
+}
+
+func MakeGameCommandResponse_Command(pIdx int, pCmd string) GameCommand {
+	return GameCommand{CmdType: GAMECMD_RESPONSE_COMMAND, PlayerCommand: pCmd, PlayerIndex: pIdx}
 }
 
 // this command is only for ROOM only, will not expose to players
 func MakeGameCommandResponse_End(gInfo string, nextGameData interface{}) GameCommand {
-	return GameCommand{CmdType: GAMECMD_GAMEEND, GameInfo: gInfo, NextGameData: nextGameData}
+	return GameCommand{CmdType: GAMECMD_RESPONSE_GAMEEND, GameInfo: gInfo, NextGameData: nextGameData}
 }
