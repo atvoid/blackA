@@ -41,9 +41,6 @@ func (this *User) clearChannel() {
 	for i := len(this.stopSigConn); i > 0; i-- {
 		<-this.stopSigConn
 	}
-	for i := len(this.ServerInput); i > 0; i-- {
-		<-this.ServerInput
-	}
 	for i := len(this.stopSigMsg); i > 0; i-- {
 		<-this.stopSigMsg
 	}
