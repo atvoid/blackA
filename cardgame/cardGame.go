@@ -22,6 +22,7 @@ const (
 
 	BLACKA_GROUP    = 0
 	NONBLACKA_GROUP = 1
+	NONE_GROUP      = 2
 )
 
 type gameInitData struct {
@@ -34,16 +35,16 @@ type dropCards struct {
 }
 
 type CardGame struct {
-	id          int
-	rule        rule.ICardRule
-	DropList    []dropCards
-	Players     []PlayerInfo
-	MsgReceiver chan room.GameCommand
-	MsgSender   chan room.GameCommand
-	End         chan bool
-	winGroup    int
-	logArea     string
-	gameInfo    CardGameInfo
+	id               int
+	rule             rule.ICardRule
+	DropList         []dropCards
+	Players          []PlayerInfo
+	MsgReceiver      chan room.GameCommand
+	MsgSender        chan room.GameCommand
+	End              chan bool
+	logArea          string
+	gameInfo         CardGameInfo
+	firstFinishGroup int
 }
 
 func (this *CardGame) GetGameId() int {
@@ -59,8 +60,10 @@ func (this *CardGame) SetMsgSender(c chan room.GameCommand) {
 func (this *CardGame) Start() {
 	this.rule.Init()
 	deal := this.rule.DealCards()
+	this.firstFinishGroup = -1
 	for i, v := range deal {
 		this.Players[i].Cards = v
+		this.Players[i].IsClear = true
 		if this.hasCards(i, []cards.Card{{CardNumber: 1, CardType: cards.CARDTYPE_CLUB}}) ||
 			this.hasCards(i, []cards.Card{{CardNumber: 1, CardType: cards.CARDTYPE_SPADE}}) {
 			this.Players[i].Group = BLACKA_GROUP
@@ -178,7 +181,20 @@ func (this *CardGame) nextTurn() {
 		if this.DropList[len(this.DropList)-1].PlayerId == this.gameInfo.Turn {
 			this.gameInfo.Wind = true
 		}
+		this.Players[this.gameInfo.Turn].DropCards = nil
+		this.Players[this.gameInfo.Turn].IsClear = true
 		this.gameInfo.Turn = (this.gameInfo.Turn + 1) % total
+	}
+	this.Players[this.gameInfo.Turn].DropCards = nil
+	this.Players[this.gameInfo.Turn].IsClear = true
+
+	// if wind or no one bid, turn to next round discarding
+	if this.gameInfo.Wind || this.gameInfo.Turn == this.DropList[len(this.DropList)-1].PlayerId {
+		logging.LogInfo_Detail(this.logArea, fmt.Sprintf("start next round. Turn:%v", this.gameInfo.Turn))
+		for i, _ := range this.Players {
+			this.Players[i].DropCards = nil
+			this.Players[i].IsClear = true
+		}
 	}
 }
 
@@ -187,9 +203,16 @@ func (this *CardGame) Pass(playerNumber int) bool {
 		return false
 	}
 	ll := len(this.DropList)
+	if ll == 0 {
+		return false
+	}
 	if ll > 0 && (this.DropList[ll-1].PlayerId == playerNumber || this.gameInfo.Wind) {
 		return false
 	}
+
+	this.Players[playerNumber].DropCards = make([]cards.Card, 0)
+	this.Players[playerNumber].IsClear = false
+
 	this.nextTurn()
 	return true
 }
@@ -201,32 +224,42 @@ func (this *CardGame) discard(playerNumber int, pat pattern.CardPattern) {
 			idx++
 		}
 		this.Players[playerNumber].Cards = append(this.Players[playerNumber].Cards[:idx], this.Players[playerNumber].Cards[idx+1:]...)
+
+		if this.firstFinishGroup == -1 && len(this.Players[playerNumber].Cards) == 0 {
+			this.firstFinishGroup = this.Players[playerNumber].Group
+		}
 	}
 	this.DropList = append(this.DropList, dropCards{PlayerId: playerNumber, Cards: pat})
 
-	blackAWin := true
-	nonAWin := true
+	this.Players[playerNumber].DropCards = pat.CardList
+	this.Players[playerNumber].IsClear = false
+
+	// judge whether anyone wins
+	blackAFinish := true
+	nonAFinish := true
 	for _, v := range this.Players {
 		if len(v.Cards) != 0 {
 			if v.Group == BLACKA_GROUP {
-				blackAWin = false
+				blackAFinish = false
 			} else {
-				nonAWin = false
+				nonAFinish = false
 			}
 		}
 	}
-	if blackAWin || nonAWin {
-		if blackAWin {
+	if blackAFinish || nonAFinish {
+		if blackAFinish && this.firstFinishGroup == BLACKA_GROUP {
 			logging.LogInfo_Normal(this.logArea, fmt.Sprintf("black win.\n"))
-			this.winGroup = BLACKA_GROUP
-		}
-		if nonAWin {
+			this.gameInfo.WinGroup = BLACKA_GROUP
+		} else if nonAFinish && this.firstFinishGroup == NONBLACKA_GROUP {
 			logging.LogInfo_Normal(this.logArea, fmt.Sprintf("non-black win.\n"))
-			this.winGroup = NONBLACKA_GROUP
+			this.gameInfo.WinGroup = NONBLACKA_GROUP
+		} else {
+			this.gameInfo.WinGroup = NONE_GROUP
+			logging.LogInfo_Normal(this.logArea, fmt.Sprintf("draw.\n"))
 		}
-		for _, v := range this.Players {
-			if v.Group == this.winGroup {
-				v.IsWinner = true
+		for i, v := range this.Players {
+			if v.Group == this.gameInfo.WinGroup {
+				this.Players[i].IsWinner = true
 			}
 		}
 		this.End <- false
@@ -263,7 +296,7 @@ func (this *CardGame) Discard(playerNumber int, cardList []cards.Card) (int, *pa
 func (this *CardGame) GetWinner() []int {
 	winner := make([]int, 0, this.rule.PlayerNumber())
 	for i, v := range this.Players {
-		if v.Group == this.winGroup {
+		if v.Group == this.gameInfo.WinGroup {
 			winner = append(winner, i)
 		}
 	}
@@ -293,6 +326,9 @@ func (this *CardGame) GetAllStatusFor(pIdx int) []string {
 		p.OnTurn = this.gameInfo.Turn == i
 		p.IsWinner = v.IsWinner
 		p.Score = v.Score
+		p.DropCards = v.DropCards
+		p.IsClear = v.IsClear
+		p.IsWinner = v.IsWinner
 		ans[i] = p.ToMessage()
 	}
 	return ans

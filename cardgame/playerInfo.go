@@ -6,16 +6,14 @@ import (
 )
 
 type PlayerInfo struct {
-	Group    int
-	UserId   int
-	Cards    []cards.Card
-	OnTurn   bool
-	IsWinner bool
-	Score    int
-}
-
-func (this *PlayerInfo) Clear() {
-	this.Cards = nil
+	Group     int
+	UserId    int
+	Cards     []cards.Card
+	DropCards []cards.Card
+	IsClear   bool // indicate next round dicarding, clear all previous operation
+	OnTurn    bool
+	IsWinner  bool
+	Score     int
 }
 
 func (this *PlayerInfo) ToMessage() string {

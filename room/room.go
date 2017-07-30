@@ -21,7 +21,7 @@ type Room struct {
 	disposeSig      chan bool
 	disposing       bool // set flag to reject all join command
 	userCount       int
-	isStarted       bool
+	IsStarted       bool
 	nextGameData    interface{}
 	logArea         string
 }
@@ -31,7 +31,7 @@ var uid int = 10000
 func CreateRoom(msgSender chan user.Command, gameCreator IGameCreator) Room {
 	uid++
 	room := Room{Id: uid, MsgReceiver: make(chan user.Command, 40)}
-	room.isStarted = false
+	room.IsStarted = false
 	room.GameCreator = gameCreator
 	room.Users = make([]*UserInfo, gameCreator.GetPlayerCapacity())
 	room.MsgSender = msgSender
@@ -53,7 +53,7 @@ func (this *Room) resetAll() {
 		}
 	}
 	this.nextGameData = nil
-	this.isStarted = false
+	this.IsStarted = false
 }
 
 func (this *Room) IsFull() bool {
@@ -144,7 +144,7 @@ func (this *Room) transformGameCommand(gCmd GameCommand) *user.Command {
 				uInfo[i].PlayerInfo = v
 			}
 		}
-		ans := MakeUserCommandForRoom(this.Users[gCmd.PlayerIndex].UserId, MakeRoomResponse_GameStatus(this.Id, uInfo, gCmd.GameInfo, this.isStarted))
+		ans := MakeUserCommandForRoom(this.Users[gCmd.PlayerIndex].UserId, MakeRoomResponse_GameStatus(this.Id, uInfo, gCmd.GameInfo, this.IsStarted))
 		c = &ans
 	case GAMECMD_RESPONSE_COMMAND:
 		u := this.Users[gCmd.PlayerIndex]
@@ -170,7 +170,7 @@ func (this *Room) notifyRoomStatus() {
 	uInfos := this.getRoomStatus()
 	for _, v := range this.Users {
 		if v != nil {
-			c := MakeUserCommandForRoom(v.UserId, MakeRoomResponse_RoomStatus(this.Id, uInfos, this.isStarted))
+			c := MakeUserCommandForRoom(v.UserId, MakeRoomResponse_RoomStatus(this.Id, uInfos, this.IsStarted))
 			this.MsgSender <- c
 		}
 	}
@@ -192,13 +192,13 @@ func (this *Room) startGame() {
 		}
 	}
 	this.Game.Start()
-	this.isStarted = true
+	this.IsStarted = true
 }
 
 func (this *Room) endGame(nextGameData interface{}) {
 	this.nextGameData = nextGameData
 	this.Game = nil
-	this.isStarted = false
+	this.IsStarted = false
 	for _, v := range this.Users {
 		if !v.Connected {
 			this.userLeave(v.UserId)
@@ -224,7 +224,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 	switch rCmd.CmdType {
 	case ROOMCMD_DISCONNECT:
 		// if game does not start, will remove the user
-		if !this.isStarted {
+		if !this.IsStarted {
 			this.userLeave(uid)
 		} else {
 			pIdx := this.getUserIndex(uid)
@@ -242,19 +242,20 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		if pIdx != -1 {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v reconnect in room %v", uid, this.Id))
 			this.Users[pIdx].Connected = true
-			if this.isStarted {
+			if this.IsStarted {
 				// notify game a user reconnected
 				gCmd := MakeGameCommandRequest_Reconnect(pIdx)
 				this.gameMsgSender <- gCmd
 			}
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Reconnect_SUCCESS(this.Id))
+			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user %v reconnect in room %v!!!!!!", uid, this.Id))
 			this.notifyRoomStatus()
 		}
 	case ROOMCMD_JOIN:
 		if this.IsFull() || this.disposing {
 			logging.LogInfo_Detail(this.logArea, "room is full.")
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Join_Full(this.Id))
-		} else if this.isStarted {
+		} else if this.IsStarted {
 			logging.LogInfo_Detail(this.logArea, "room has started.")
 			this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_Join_Started(this.Id))
 		} else {
@@ -269,7 +270,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 			this.disposeSelf()
 		}
 	case ROOMCMD_LEAVE:
-		if this.isStarted {
+		if this.IsStarted {
 			pIdx := this.getUserIndex(uid)
 			if pIdx != -1 {
 				logging.LogInfo_Detail(this.logArea, fmt.Sprintf("%v exited from a ongoing game.", uid))
@@ -279,7 +280,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		this.userLeave(uid)
 
 	case ROOMCMD_READY:
-		if this.isStarted {
+		if this.IsStarted {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user:%v, invalid ready cmd, game has already started.", uid))
 		} else {
 			pIdx := this.getUserIndex(uid)
@@ -293,7 +294,7 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		}
 		this.notifyRoomStatus()
 	case ROOMCMD_NOTREADY:
-		if this.isStarted {
+		if this.IsStarted {
 			logging.LogInfo_Detail(this.logArea, fmt.Sprintf("user:%v, invalid notready cmd, game has already started.", uid))
 		} else {
 			pIdx := this.getUserIndex(uid)
@@ -305,9 +306,9 @@ func (this *Room) handleRoomCommand(uid int, rCmd RoomCommand) {
 		this.notifyRoomStatus()
 	case ROOMCMD_ROOMSTATUS:
 		uInfos := this.getRoomStatus()
-		this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_RoomStatus(this.Id, uInfos, this.isStarted))
+		this.MsgSender <- MakeUserCommandForRoom(uid, MakeRoomResponse_RoomStatus(this.Id, uInfos, this.IsStarted))
 	case ROOMCMD_GAMESTATUS:
-		if this.isStarted {
+		if this.IsStarted {
 			pIdx := this.getUserIndex(uid)
 			if pIdx != -1 {
 				this.gameMsgSender <- MakeGameCommandRequest_Status(pIdx)

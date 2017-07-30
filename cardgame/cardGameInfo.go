@@ -5,9 +5,10 @@ import (
 )
 
 type CardGameInfo struct {
-	IsEnd bool
-	Turn  int
-	Wind  bool
+	IsEnd    bool
+	Turn     int
+	Wind     bool
+	WinGroup int
 }
 
 func (this *CardGameInfo) ToMessage() string {

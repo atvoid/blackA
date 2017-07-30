@@ -84,7 +84,7 @@ func (this *ServerRouter) handlerUserCommand(c user.Command) {
 			// join a random room
 			ok := false
 			for _, v := range this.roomSession {
-				if v != nil && !v.IsFull() {
+				if v != nil && !v.IsFull() && !v.IsStarted {
 					v.MsgReceiver <- c
 					ok = true
 					break
